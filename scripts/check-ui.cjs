@@ -20,7 +20,7 @@ const {readDashboard} = require('../electron/excel.cjs');
  await page.locator('.dashboard-card[aria-busy="false"]').first().waitFor();
  const initial=await titles();assert.equal(initial.length,13);
  assert.equal(await page.getByRole('button',{name:/Как рассчитывается:/}).count(),13);
- await page.getByRole('button',{name:'Как рассчитывается: TOTAL · за период, USD',exact:true}).hover();await page.getByRole('tooltip').waitFor();assert.ok((await page.getByRole('tooltip').textContent()).includes('Y'));await page.mouse.move(1,1);await page.getByRole('tooltip').waitFor({state:'hidden'});
+ await page.getByRole('button',{name:'Как рассчитывается: Our P&L · Period (USD)',exact:true}).hover();await page.getByRole('tooltip').waitFor();assert.ok((await page.getByRole('tooltip').textContent()).includes('Y'));await page.mouse.move(1,1);await page.getByRole('tooltip').waitFor({state:'hidden'});
  const fromInput=page.getByRole('textbox',{name:'С даты',exact:true}),toInput=page.getByRole('textbox',{name:'По дату',exact:true});assert.equal(await toInput.inputValue(),'13/10/2026');await fromInput.fill('12/10/2026');await fromInput.blur();assert.equal(await page.locator('.table-scroll tbody tr').count(),2);await fromInput.fill('31/02/2026');await fromInput.blur();await page.getByText('Введите существующую дату: дд/мм/гггг',{exact:true}).waitFor();assert.equal(await page.locator('.table-scroll tbody tr').count(),2);await fromInput.fill('');await toInput.fill('13/10/2026');await toInput.blur();
 
  assert.equal(await page.locator('.powered-by').textContent(),'Powered by LSD');

@@ -87,7 +87,7 @@ const {readDashboard} = require('../electron/excel.cjs');
  await page.screenshot({path:`/private/tmp/netting-web-${width}.png`,fullPage:true});
  }
  assert.equal(await page.getByRole('button',{name:/^Переименовать:/}).count(),13,'Every card can be renamed');
- const metricTitle='TOTAL · за период, USD',customMetric='Прибыль за период';
+ const metricTitle='Our P&L · Period (USD)',customMetric='Прибыль за период';
  const chartTitle='Динамика TOTAL',customChart='Результат по дням';
  await page.getByRole('button',{name:`Переименовать: ${metricTitle}`,exact:true}).click();
  const renameDialog=page.getByRole('dialog',{name:'Название карточки',exact:true});await renameDialog.waitFor();
