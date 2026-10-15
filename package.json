@@ -1,0 +1,52 @@
+{
+  "name": "netting-dashboard",
+  "version": "0.1.0",
+  "private": true,
+  "main": "electron/main.cjs",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "desktop": "electron .",
+    "build": "tsc --noEmit && vite build",
+    "package:mac": "npm run build:icon && npm run build && electron-builder --mac",
+    "build:icon": "node scripts/build-icon.cjs"
+  },
+  "dependencies": {
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
+    "@gravity-ui/charts": "latest",
+    "@gravity-ui/uikit": "latest",
+    "exceljs": "^4.4.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "electron": "^35.0.0",
+    "electron-builder": "^26.0.0",
+    "playwright": "^1.64.0",
+    "sharp": "^0.35.5",
+    "typescript": "^5.7.0",
+    "vite": "^6.0.0"
+  },
+  "build": {
+    "appId": "com.nexumae.totaldashboard",
+    "productName": "Netting Dashboard",
+    "files": [
+      "dist/index.html",
+      "dist/assets/**/*",
+      "electron/**/*",
+      "package.json",
+      "dist/netting-logo.svg"
+    ],
+    "mac": {
+      "target": "dmg",
+      "category": "public.app-category.business",
+      "icon": "build/netting.icns"
+    },
+    "directories": {
+      "output": "release"
+    }
+  }
+}
