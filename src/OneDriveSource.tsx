@@ -6,7 +6,7 @@ import {AppIcon} from './Icons';
 import {SharedCatalog} from './SharedCatalog';
 import type {Data} from './data';
 
-export function OneDriveSource({onData,onBusy,toolsElement,navigation,section,onSection}: {onData:(data:Data|null)=>void;onBusy:(busy:boolean)=>void;toolsElement:HTMLElement|null;navigation:{id:string;label:string}[];section:string;onSection:(id:string)=>void}) {
+export function OneDriveSource({onData,onBusy,toolsElement,navigation,section,onSection,onSessionChange}: {onData:(data:Data|null)=>void;onBusy:(busy:boolean)=>void;toolsElement:HTMLElement|null;onSessionChange:(signedIn:boolean)=>void;navigation:{id:string;label:string}[];section:string;onSection:(id:string)=>void}) {
   const [ready,setReady] = React.useState(false);
   const [account,setAccount] = React.useState('');
   const [source,setSource] = React.useState<Item|null>(null);
@@ -67,11 +67,11 @@ export function OneDriveSource({onData,onBusy,toolsElement,navigation,section,on
     let disposed=false;
     void initialized.then(()=>{
       if(disposed)return;
-      setReady(true);setAccount(auth.getActiveAccount()?.username ?? '');
+      setReady(true);setAccount(auth.getActiveAccount()?.username ?? '');onSessionChange(Boolean(auth.getActiveAccount()));
       const item=restoreSource(); if(item && auth.getActiveAccount()) {setSource(item);void refresh(item);}
     }).catch(()=>{if(!disposed){setReady(true);setError('Не удалось подготовить вход Microsoft. Обновите страницу.');}});
     return()=>{disposed=true;};
-  },[refresh]);
+  },[refresh,onSessionChange]);
   React.useEffect(()=>{
     if(!source || !account)return;
     const check=()=>{if(document.visibilityState==='visible' && navigator.onLine)void refresh(source);};
@@ -81,11 +81,11 @@ export function OneDriveSource({onData,onBusy,toolsElement,navigation,section,on
   },[source,account,refresh]);
   const login=async()=>{setError('');try{await signIn();}catch{setError('Не удалось начать вход Microsoft. Попробуйте ещё раз.');}};
   const logout=async()=>{
-    generation.current++;cache.current=undefined;onData(null);setSource(null);setAccount('');setItems([]);setPicker(false);setError('');
+    generation.current++;cache.current=undefined;onData(null);onSessionChange(false);setSource(null);setAccount('');setItems([]);setPicker(false);setError('');
     try{await auth.logoutRedirect({account:auth.getActiveAccount() ?? undefined});}catch{setError('Не удалось завершить выход Microsoft. Обновите страницу.');}
   };
   return <>
-  {toolsElement && createPortal(<DropdownMenu switcherWrapperClassName={account?undefined:'signed-out-menu'} size="l" open={menuOpen} onOpenToggle={setMenuOpen} icon={<AppIcon name="menu"/>} defaultSwitcherProps={{view:'flat','aria-label':'Открыть меню',className:'icon-button',title:'Меню'}} popupProps={{placement:'bottom-end'}} items={[
+  {account && toolsElement && createPortal(<DropdownMenu defaultSwitcherClassName="icon-button" switcherWrapperClassName={account?undefined:'signed-out-menu'} size="l" open={menuOpen} onOpenToggle={setMenuOpen} icon={<AppIcon name="menu"/>} defaultSwitcherProps={{view:'flat','aria-label':'Открыть меню',title:'Меню'}} popupProps={{placement:'bottom-end'}} items={[
     navigation.map(item=>({text:item.label,action:()=>onSection(item.id),className:'mobile-nav-item',selected:section===item.id})),
     ...(account ? [[{text:'Мой OneDrive',iconStart:<AppIcon name="cloud" size={18}/>,disabled:busy,action:()=>void browse([])},{text:'Общие файлы',iconStart:<AppIcon name="folder" size={18}/>,disabled:busy,action:()=>void search()}],[{text:'Выйти',iconStart:<AppIcon name="logout" size={18}/>,disabled:busy,action:()=>setConfirmLogout(true)}]] : []),
   ]}/>,toolsElement)}

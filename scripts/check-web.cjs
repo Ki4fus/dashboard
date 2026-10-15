@@ -37,6 +37,15 @@ const {readDashboard} = require('../electron/excel.cjs');
  await page.route('https://download.example.com/**',async route=>{downloads++;assert.equal(route.request().headers().authorization,undefined);await route.fulfill({body:invalid?Buffer.from('invalid excel'):bytes});});
  const menuAction=async name=>{await page.getByRole('button',{name:'Открыть меню',exact:true}).click();await page.getByRole('menuitem',{name,exact:true}).click();};
  await page.goto('http://localhost:5173/');
+ await page.getByRole('button',{name:'Войти через Microsoft',exact:true}).waitFor();
+ for(const width of [390,768,1440]) {
+  await page.setViewportSize({width,height:900});await page.evaluate(()=>document.fonts.ready);
+  assert.equal(await page.locator('#dashboard-sidebar').count(),0,'No sidebar before authentication');
+  assert.equal(await page.locator('.header-actions').count(),0,'No theme or menu before authentication');
+  assert.equal(await page.getByRole('button').count(),1,'Only sign-in action is shown');
+  assert.ok(await page.locator('.welcome').evaluate(e=>{const r=e.getBoundingClientRect();return Math.abs(r.x+r.width/2-innerWidth/2)<2&&Math.abs(r.y+r.height/2-innerHeight/2)<2;}),'Login card centered in viewport');
+  await page.screenshot({path:`/private/tmp/netting-auth-${width}.png`});
+ }
  await page.getByRole('button',{name:'Войти через Microsoft',exact:true}).click();
  await menuAction('Мой OneDrive');
  await page.getByRole('button',{name:/Reports/}).click();await page.getByRole('button',{name:/Report.xlsx/}).click();
@@ -61,6 +70,18 @@ const {readDashboard} = require('../electron/excel.cjs');
  await page.setViewportSize({width,height:900});await page.waitForFunction(()=>document.documentElement.scrollWidth<=innerWidth,{},{timeout:5000}).catch(async error=>{console.log(await page.evaluate(()=>[...document.querySelectorAll('body *')].filter(e=>e.getBoundingClientRect().right>innerWidth+1).map(e=>({tag:e.tagName,cls:e.className,right:e.getBoundingClientRect().right})).slice(0,25)));await page.screenshot({path:'/private/tmp/netting-ui-overflow.png',fullPage:true});throw error;});
  const overflow=await page.evaluate(()=>[...document.querySelectorAll('body *')].filter(e=>e.getBoundingClientRect().right>innerWidth+1 && getComputedStyle(e).position!=='absolute').map(e=>[e.tagName,e.className,e.getBoundingClientRect().right]).slice(0,20)); if(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth))console.log('Overflow',overflow);
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,`No page overflow at ${width}`);
+ const topButtons=page.locator('.header-actions button');
+ assert.equal(await topButtons.count(),2);
+ const topBoxes=await topButtons.evaluateAll(nodes=>nodes.map(e=>{const r=e.getBoundingClientRect();return {x:r.x,y:r.y,w:r.width,h:r.height};}));
+ assert.ok(Math.abs(topBoxes[0].y-topBoxes[1].y)<1&&Math.abs(topBoxes[0].h-topBoxes[1].h)<1,'Theme and menu share a baseline and height');
+ for(const button of await page.locator('button.icon-button,button.calendar-button,button.drag-handle').all()) {
+  if(!await button.isVisible())continue;await button.hover();
+  assert.ok(await button.evaluate(e=>{const icon=e.querySelector('svg');if(!icon)return true;const a=e.getBoundingClientRect(),b=icon.getBoundingClientRect();return Math.abs(a.x+a.width/2-b.x-b.width/2)<1&&Math.abs(a.y+a.height/2-b.y-b.height/2)<1;}),'Button icon centered on hover');
+ }
+ for(const button of await page.locator('button.g-button:not(.icon-button)').all()) {
+  if(!await button.isVisible())continue;
+  assert.ok(await button.evaluate(e=>{const text=e.querySelector('.g-button__text');if(!text)return true;const a=e.getBoundingClientRect(),b=text.getBoundingClientRect();return Math.abs(a.x+a.width/2-b.x-b.width/2)<1&&Math.abs(a.y+a.height/2-b.y-b.height/2)<1;}),'Button text wrapper centered');
+ }
  const columns=await page.locator('.dashboard-grid').evaluate(e=>getComputedStyle(e).gridTemplateColumns.split(' ').length);assert.equal(columns,width===390?1:width===768?2:3);
  if(width===390){await calendar.tap();await page.getByRole('dialog',{name:'Календарь: С даты'}).waitFor();await calendar.tap();await page.getByRole('dialog',{name:'Календарь: С даты'}).waitFor({state:'hidden'});await calendar.tap();await page.getByRole('heading',{name:'Netting Dashboard',exact:true}).tap();await page.getByRole('dialog',{name:'Календарь: С даты'}).waitFor({state:'hidden'});await menuAction('Total');assert.equal(await page.locator('.dashboard-card').count(),7);await menuAction('Обзор показателей');}
  await page.screenshot({path:`/private/tmp/netting-web-${width}.png`,fullPage:true});
@@ -78,6 +99,6 @@ const {readDashboard} = require('../electron/excel.cjs');
  await menuAction('Выйти');await page.getByRole('dialog',{name:'Выйти из дашборда?'}).waitFor();await page.getByRole('button',{name:'Остаться',exact:true}).click();assert.equal(await page.locator('.dashboard-card').count(),13,'Cancel logout preserves data');
  await menuAction('Выйти');await page.getByRole('dialog',{name:'Выйти из дашборда?'}).waitFor();await page.keyboard.press('Escape');await page.getByRole('dialog',{name:'Выйти из дашборда?'}).waitFor({state:'hidden'});assert.equal(await page.locator('.dashboard-card').count(),13);
  await menuAction('Выйти');await page.getByRole('button',{name:'Выйти',exact:true}).click();await page.getByRole('button',{name:'Войти через Microsoft',exact:true}).waitFor();assert.equal(await page.locator('.dashboard-card').count(),0);
- assert.deepEqual(errors,[]);console.log('Web checks passed: mouse/touch calendar dismissal, menu, logout confirmation and cancellation, folder catalog, local Cyrillic font, centered grip, 390/768/1440 layouts, Excel parsing, loading and refresh. Microsoft authentication is mocked.');
+ assert.deepEqual(errors,[]);console.log('Web checks passed: centered sign-in-only screen, aligned header and all icon/text buttons, mouse/touch calendar dismissal, menu, logout confirmation and cancellation, folder catalog, local Cyrillic font, centered grip, 390/768/1440 layouts, Excel parsing, loading and refresh. Microsoft authentication is mocked.');
  } finally {await browser.close();await fs.unlink(fixture);}
 })().catch(e=>{console.error(e);process.exitCode=1;});
