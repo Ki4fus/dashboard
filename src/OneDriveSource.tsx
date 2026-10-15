@@ -1,6 +1,6 @@
 import React from 'react';
-import {Button} from '@gravity-ui/uikit';
-import {auth, initialized, signIn, listItems, loadItem, restoreSource, saveSource, type Item} from './oneDrive';
+import {Button, TextInput} from '@gravity-ui/uikit';
+import {auth, initialized, signIn, listItems, loadItem, restoreSource, saveSource, searchSharedFiles, itemKey, type Item} from './oneDrive';
 import type {Data} from './data';
 
 export function OneDriveSource({onData,onBusy}: {onData:(data:Data|null)=>void;onBusy:(busy:boolean)=>void}) {
@@ -9,6 +9,11 @@ export function OneDriveSource({onData,onBusy}: {onData:(data:Data|null)=>void;o
   const [source,setSource] = React.useState<Item|null>(null);
   const [items,setItems] = React.useState<Item[]>([]);
   const [trail,setTrail] = React.useState<Item[]>([]);
+  const [mode,setMode] = React.useState<'own'|'shared'>('own');
+  const [query,setQuery] = React.useState('RUB RATES LOG');
+  const [searchedQuery,setSearchedQuery] = React.useState('');
+  const [more,setMore] = React.useState(false);
+  const [offset,setOffset] = React.useState(0);
   const [picker,setPicker] = React.useState(false);
   const [busy,setBusy] = React.useState(false);
   const [error,setError] = React.useState('');
@@ -21,10 +26,10 @@ export function OneDriveSource({onData,onBusy}: {onData:(data:Data|null)=>void;o
     working.current=true; setBusy(true); onBusy(true);
     const current = generation.current;
     try {
-      const previous = cache.current?.id === item.id ? cache.current : undefined;
+      const previous = cache.current?.id === itemKey(item) ? cache.current : undefined;
       const result = await loadItem(item,previous);
       if (current !== generation.current) return;
-      cache.current={id:item.id,tag:result.tag,data:result.data};
+      cache.current={id:itemKey(item),tag:result.tag,data:result.data};
       onData(result.data); setSource(item); saveSource(item); setPicker(false); setError('');
       setChecked(new Date().toLocaleTimeString('ru-RU'));
     } catch(e) {if (current === generation.current) setError(e instanceof Error ? e.message : 'Не удалось прочитать Excel.');}
@@ -32,9 +37,21 @@ export function OneDriveSource({onData,onBusy}: {onData:(data:Data|null)=>void;o
   },[onData,onBusy]);
   const browse = async (next:Item[]) => {
     if (working.current) return;
-    working.current=true;setBusy(true);setPicker(true);setError('');setItems([]);
+    working.current=true;setMode('own');setBusy(true);setPicker(true);setError('');setItems([]);
     try {setItems(await listItems(next.at(-1)?.id));setTrail(next);}
     catch(e) {setError(e instanceof Error ? e.message : 'Не удалось открыть папку.');}
+    finally {working.current=false;setBusy(false);}
+  };
+  const search = async (nextOffset=0) => {
+    if (working.current) return;
+    working.current=true;setBusy(true);setMode('shared');setPicker(true);setError('');
+    if (!nextOffset) setItems([]);
+    const term=nextOffset ? searchedQuery : query;
+    try {
+      const result=await searchSharedFiles(term,nextOffset);
+      setItems(previous=>nextOffset ? [...new Map([...previous,...result.items].map(item=>[itemKey(item),item])).values()] : result.items);
+      setMore(result.more);setOffset(nextOffset+100);setSearchedQuery(term);
+    } catch(e) {setError(e instanceof Error ? e.message : 'Не удалось найти общие файлы.');}
     finally {working.current=false;setBusy(false);}
   };
   React.useEffect(()=>{
@@ -60,12 +77,18 @@ export function OneDriveSource({onData,onBusy}: {onData:(data:Data|null)=>void;o
   };
   return <section className={`cloud-source ${!account ? 'welcome' : ''}`} aria-label="Подключение OneDrive">
     {!account ? <><h2>Ваш дашборд из OneDrive</h2><p>Войдите с рабочей учётной записью Microsoft 365 и выберите Excel. Данные обрабатываются на этом устройстве.</p><Button size="l" view="action" disabled={!ready} onClick={()=>void login()}>Войти через Microsoft</Button></> : <>
-      <div className="cloud-toolbar"><div><b>OneDrive · {account}</b><p>{source ? source.name : 'Выберите книгу .xlsx с листом RUB Deals Rates'}</p>{checked && <small>Проверено в {checked} · обновление раз в минуту</small>}</div><div className="actions">
-      <Button disabled={busy} onClick={()=>void browse([])}>{source ? 'Сменить Excel' : 'Выбрать Excel'}</Button>
+      <div className="cloud-toolbar"><div><b>OneDrive · {account}</b><p>{source ? source.name : 'Свой Excel — «Выбрать Excel», книга коллеги — «Общие файлы»'}</p>{checked && <small>Проверено в {checked} · обновление раз в минуту</small>}</div><div className="actions">
+      <Button disabled={busy} onClick={()=>void browse([])}>{source ? 'Мой OneDrive' : 'Выбрать Excel'}</Button>
+      <Button disabled={busy} onClick={()=>void search()}>Общие файлы</Button>
       {source && <Button disabled={busy} onClick={()=>void refresh(source)} loading={busy}>Обновить</Button>}
       <Button disabled={busy} onClick={()=>void logout()}>Выйти</Button></div></div>
-      {picker && <div className="file-picker"><div className="actions"><Button disabled={busy} onClick={()=>void browse([])}>Мой OneDrive</Button>{trail.length>0 && <Button disabled={busy} onClick={()=>void browse(trail.slice(0,-1))}>Назад</Button>}<span>{trail.map(i=>i.name).join(' / ')}</span><Button disabled={busy} onClick={()=>setPicker(false)}>Закрыть</Button></div>
-      {busy ? <p role="status">Загрузка…</p> : items.length ? <ul>{items.map(item=><li key={item.id}><button disabled={busy} onClick={()=>void (item.folder ? browse([...trail,item]) : refresh(item))}><span aria-hidden="true">{item.folder ? '📁' : '▦'}</span> {item.name}{item.folder ? ' /' : ''}</button></li>)}</ul> : <p>В этой папке нет папок или файлов .xlsx.</p>}</div>}
+      {picker && <div className="file-picker">
+        <div className="actions"><Button disabled={busy} onClick={()=>void browse([])}>Мой OneDrive</Button><Button disabled={busy} onClick={()=>void search()}>Общие файлы</Button>{mode==='own' && trail.length>0 && <Button disabled={busy} onClick={()=>void browse(trail.slice(0,-1))}>Назад</Button>}<span>{mode==='own' ? trail.map(i=>i.name).join(' / ') : 'Excel, доступные вашей учётной записи'}</span><Button disabled={busy} onClick={()=>setPicker(false)}>Закрыть</Button></div>
+        {mode==='shared' && <form className="shared-search" onSubmit={e=>{e.preventDefault();void search();}}><TextInput size="l" placeholder="Название или часть названия Excel" controlProps={{'aria-label':'Название общего Excel'}} value={query} onUpdate={setQuery}/><Button type="submit" disabled={busy}>Найти</Button></form>}
+        {busy && <p role="status">Загрузка…</p>}
+        {items.length>0 ? <ul>{items.map(item=><li key={itemKey(item)}><button disabled={busy} onClick={()=>void (item.folder ? browse([...trail,item]) : refresh(item))}><span aria-hidden="true">{item.folder ? '📁' : '▦'}</span> {item.name}{item.folder ? ' /' : ''}{mode==='shared' && item.webUrl && <small className="file-location">{item.webUrl}</small>}</button></li>)}</ul> : !busy && <p>{mode==='own' ? 'В этой папке нет папок или файлов .xlsx. Если книгу предоставил коллега, откройте «Общие файлы».' : 'Книги не найдены. Уточните название. Недавно предоставленный файл может появиться в поиске с задержкой.'}</p>}
+        {mode==='shared' && more && <Button disabled={busy} onClick={()=>void search(offset)}>Показать ещё</Button>}
+      </div>}
     </>}
     {error && <div className="cloud-error" role="alert"><p>{error} {cache.current && 'Показаны данные последнего успешного чтения.'}</p>{account && <Button onClick={()=>void login()}>Войти снова</Button>}</div>}
     {source && !cache.current && !busy && !picker && <Button onClick={()=>void browse([])}>Выбрать другую книгу</Button>}
