@@ -31,7 +31,7 @@ function App() {
   const [error, setError] = React.useState('');
   const [busy, setBusy] = React.useState(true);
   const [filterReset,setFilterReset] = React.useState(0);
-  const [from, setFrom] = React.useState('');
+  const [from, setFrom] = React.useState(() => todayDate().slice(0, 7) + '-01');
   const [to, setTo] = React.useState(() => new Intl.DateTimeFormat('en-CA', {timeZone: 'Asia/Dubai', year: 'numeric', month: '2-digit', day: '2-digit'}).format(new Date()));
   React.useEffect(()=>{try{localStorage.setItem('netting-theme',theme);}catch{/* Theme remains available without storage. */}},[theme]);
   const busyRef = React.useRef(false);
