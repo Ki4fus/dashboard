@@ -2,9 +2,10 @@ import React from 'react';
 import {createRoot} from 'react-dom/client';
 import {Button, ThemeProvider} from '@gravity-ui/uikit';
 import {Chart} from '@gravity-ui/charts';
-import '@gravity-ui/uikit/styles/fonts.css';
+import '@fontsource-variable/inter';
 import '@gravity-ui/uikit/styles/styles.css';
 import './styles.css';
+import {AppIcon} from './Icons';
 import {DateFilter} from './DateFilter';
 import {DashboardGrid, type DashboardCard} from './DashboardGrid';
 import {analytics} from './analytics';
@@ -20,15 +21,16 @@ const sections: {id:Section;label:string}[] = [{id:'overview',label:'Обзор 
 const currencyColors = ['#49a2ed','#ff3765','#78d85e','#ffc43b','#b17bf2','#37c6b7','#f48b56'];
 const day = (d: string) => d.split('-').reverse().join('.');
 function App() {
-  const [menuOpen,setMenuOpen] = React.useState(false);
+  const [toolsElement,setToolsElement] = React.useState<HTMLDivElement|null>(null);
   const [section,setSection] = React.useState<Section>('overview');
-  const [theme, setTheme] = React.useState<'light' | 'dark'>('light');
+  const [theme, setTheme] = React.useState<'light' | 'dark'>(()=>{try{return localStorage.getItem('netting-theme')==='dark'?'dark':'light';}catch{return 'light';}});
   const [data, setData] = React.useState<Data | null>(null);
   const [error, setError] = React.useState('');
   const [busy, setBusy] = React.useState(true);
   const [filterReset,setFilterReset] = React.useState(0);
   const [from, setFrom] = React.useState('');
   const [to, setTo] = React.useState(() => new Intl.DateTimeFormat('en-CA', {timeZone: 'Asia/Dubai', year: 'numeric', month: '2-digit', day: '2-digit'}).format(new Date()));
+  React.useEffect(()=>{try{localStorage.setItem('netting-theme',theme);}catch{/* Theme remains available without storage. */}},[theme]);
   const busyRef = React.useRef(false);
   const load = React.useCallback(async (refresh: boolean | 'restore' = false) => {
     if (busyRef.current) return;
@@ -65,15 +67,13 @@ function App() {
     {id:'date-issues',title:"Проверьте даты в Excel",kind:'panel',content:<><h2>Проверьте даты в Excel</h2><p>В этих блоках встречаются разные даты. Итоги исключены из графика до уточнения.</p>{issues.filter(p=>!p.date).map(p=><p key={p.row}>Строка {p.row}: {p.issue}</p>)}</>},
   ];
   const sectionCards = cards.filter(card => section === 'overview' || ['daily-table','date-issues'].includes(card.id) || (section === 'total' ? card.id.startsWith('total-') : section === 'rates' ? card.id.startsWith('rate-') : card.id.startsWith('fixed-') || card.id === 'currencies'));
-  return <ThemeProvider theme={theme}><div className={`shell ${menuOpen ? 'menu-open' : ''}`}>
-    <button className="mobile-menu" aria-label={menuOpen ? 'Закрыть меню' : 'Открыть меню'} aria-expanded={menuOpen} aria-controls="dashboard-sidebar" onClick={()=>setMenuOpen(!menuOpen)}>☰</button>
-    {menuOpen && <button className="menu-backdrop" aria-label="Закрыть меню" onClick={()=>setMenuOpen(false)}/> }
-    <aside id="dashboard-sidebar"><div className="brand"><span className="logo"><img src="./netting-logo.svg" width="36" height="36" alt=""/></span> Netting<span className="subtitle">Dashboard</span></div><nav className="sidebar-nav" aria-label="Разделы дашборда">{sections.map(item=><button key={item.id} className={`nav ${section===item.id ? 'active' : ''}`} aria-current={section===item.id ? 'page' : undefined} onClick={()=>{setSection(item.id);setMenuOpen(false);}}>{item.label}</button>)}</nav><div className="source"><span className="dot"/> {data ? desktop ? 'Локальный Excel' : 'Excel из OneDrive' : 'Источник не выбран'}<br/><small>Обновление раз в минуту</small><br/><small>{desktop ? 'Локальное приложение' : 'Microsoft 365'}</small></div></aside>
-    <main><header><div><div className="eyebrow">ПАНЕЛЬ РУКОВОДИТЕЛЯ</div><h1>Netting Dashboard</h1><p>{sections.find(item=>item.id===section)!.label} · RUB Deals Rates</p></div><div className="header-right"><div className="powered-by">Powered by LSD</div><div className="actions">{desktop && <><Button size="l" view="action" loading={busy} onClick={() => void load()}>Открыть Excel</Button><Button size="l" disabled={!data || busy} onClick={() => void load(true)}>Обновить</Button></>}<Button size="l" onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}>{theme === 'light' ? 'Тёмная тема' : 'Светлая тема'}</Button></div></div></header>
-    {!desktop && <React.Suspense fallback={<p role="status">Подготовка входа…</p>}><OneDriveSource onData={setData} onBusy={setBusy}/></React.Suspense>}
+  return <ThemeProvider theme={theme}><div className="shell">
+    <aside id="dashboard-sidebar"><div className="brand"><span className="logo"><img src="./netting-logo.svg" width="36" height="36" alt=""/></span> Netting<span className="subtitle">Dashboard</span></div><nav className="sidebar-nav" aria-label="Разделы дашборда">{sections.map(item=><button key={item.id} className={`nav ${section===item.id ? 'active' : ''}`} aria-current={section===item.id ? 'page' : undefined} onClick={()=>setSection(item.id)}>{item.label}</button>)}</nav><div className="source"><span className="dot"/> {data ? desktop ? 'Локальный Excel' : 'Excel из OneDrive' : 'Источник не выбран'}<br/><small>Обновление раз в минуту</small><br/><small>{desktop ? 'Локальное приложение' : 'Microsoft 365'}</small></div></aside>
+    <main><header><div><div className="eyebrow">ПАНЕЛЬ РУКОВОДИТЕЛЯ</div><h1>Netting Dashboard</h1><p>{sections.find(item=>item.id===section)!.label} · RUB Deals Rates</p></div><div className="header-right"><div className="powered-by">Powered by LSD</div><div className="actions header-actions">{desktop && <><Button size="l" view="action" loading={busy} onClick={() => void load()}>Открыть Excel</Button><Button size="l" disabled={!data || busy} onClick={() => void load(true)}>Обновить</Button></>}<Button view="flat" size="l" className="icon-button" title={theme==='light'?'Тёмная тема':'Светлая тема'} aria-label={theme==='light'?'Тёмная тема':'Светлая тема'} onClick={()=>setTheme(theme==='light'?'dark':'light')}><AppIcon name={theme==='light'?'moon':'sun'}/></Button><div ref={setToolsElement} className="header-menu-slot"/></div></div></header>
+    {!desktop && <React.Suspense fallback={<p role="status">Подготовка входа…</p>}><OneDriveSource onData={setData} onBusy={setBusy} toolsElement={toolsElement} navigation={sections} section={section} onSection={id=>setSection(id as Section)}/></React.Suspense>}
     {error && <div role="alert" className="notice">{error} {data && 'Показаны данные последнего успешного чтения.'}</div>}
     {(desktop || data) && <>
-    <div className="notice">{data ? `${data.name} · Прочитан ${new Date(data.updated).toLocaleTimeString('ru-RU')} · ${issues.length} строк TOTAL с пропуском или ошибкой` : 'Выберите Excel. Дата берётся из блока операций, итог — из Y строки TOTAL.'}</div>
+    {(desktop || issues.length>0) && <div className="notice">{data ? `${data.name} · Прочитан ${new Date(data.updated).toLocaleTimeString('ru-RU')} · ${issues.length} строк TOTAL с пропуском или ошибкой` : 'Выберите Excel. Дата берётся из блока операций, итог — из Y строки TOTAL.'}</div>}
     <div className="filters"><DateFilter key={`from-${filterReset}`} label="С даты" value={from} onChange={setFrom}/><DateFilter key={`to-${filterReset}`} label="По дату" value={to} onChange={setTo}/><Button onClick={()=>{setFrom('');setTo('');setFilterReset(value=>value+1);}}>Все даты</Button></div>
     {from && to && from > to && <p role="alert">Начальная дата позже конечной.</p>}
     <DashboardGrid key={section} cards={sectionCards} loading={busy} layoutId={section}/>

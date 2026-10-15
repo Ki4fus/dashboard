@@ -13,7 +13,7 @@ const {readDashboard} = require('../electron/excel.cjs');
  const expected=await readDashboard(fixture);
  const browser=await chromium.launch({executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',headless:true});
  try {
- const page=await browser.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ const page=await browser.newPage({hasTouch:true});const errors=[];page.on('pageerror',e=>errors.push(e.message));
  let tag='version-1',downloads=0,forbidden=false,invalid=false,pages=0,sharedReads=0,missingDownload=false,remoteFull=false;
  const authMock=`export class InteractionRequiredAuthError extends Error {};
  export const BrowserCacheLocation={SessionStorage:'sessionStorage'};
@@ -28,43 +28,56 @@ const {readDashboard} = require('../electron/excel.cjs');
   assert.equal(route.request().headers().authorization,'Bearer test-token');
   const url=new URL(route.request().url());let body;
   if(forbidden)return route.fulfill({status:403,body:'{}'});
-  if(url.pathname.endsWith('/search/query')) {assert.equal(route.request().method(),'POST');const request=route.request().postDataJSON().requests[0];assert.deepEqual(request.entityTypes,['driveItem']);assert.ok(request.query.queryString.includes('RUB RATES LOG'));body={value:[{hitsContainers:[{moreResultsAvailable:false,hits:[{hitId:'book',resource:{id:'book',name:'RUB RATES LOG.xlsx',webUrl:'https://example.sharepoint.com/personal/colleague/Documents/RUB%20RATES%20LOG.xlsx',parentReference:{driveId:'colleague-drive'},file:{}}}]}]}]};}
+  if(url.pathname.endsWith('/search/query')) {assert.equal(route.request().method(),'POST');const request=route.request().postDataJSON().requests[0];assert.deepEqual(request.entityTypes,['driveItem']);assert.ok(request.query.queryString.includes('filetype:xlsx'));body={value:[{hitsContainers:[{moreResultsAvailable:false,hits:[{hitId:'book',resource:{id:'book',name:'RUB RATES LOG.xlsx',webUrl:'https://example.sharepoint.com/personal/colleague/Documents/RUB%20RATES%20LOG.xlsx',parentReference:{driveId:'colleague-drive'},file:{}}}]}]}]};}
   else if(url.pathname.endsWith('/root/children'))body={value:[{id:'folder',name:'Reports',folder:{}}]};
   else if(url.pathname.endsWith('/folder/children')) {pages++;body=url.searchParams.has('page')?{value:[{id:'book',name:'Report.xlsx',file:{}}]}:{value:[], '@odata.nextLink':'https://graph.microsoft.com/v1.0/me/drive/items/folder/children?page=2'};}
   else {const shared=url.pathname.includes('/drives/colleague-drive/');if(shared)sharedReads++;body={id:'book',name:url.pathname.includes('/drives/')?'RUB RATES LOG.xlsx':'Report.xlsx',cTag:tag,'@microsoft.graph.downloadUrl':'https://download.example.com/book.xlsx'};if(missingDownload || (shared && url.searchParams.has('$select')))delete body['@microsoft.graph.downloadUrl'];if(shared && remoteFull && !url.searchParams.has('$select')){delete body['@microsoft.graph.downloadUrl'];body.remoteItem={id:'actual',parentReference:{driveId:'origin-drive'}};}}
   await route.fulfill({contentType:'application/json',body:JSON.stringify(body)});
  });
  await page.route('https://download.example.com/**',async route=>{downloads++;assert.equal(route.request().headers().authorization,undefined);await route.fulfill({body:invalid?Buffer.from('invalid excel'):bytes});});
+ const menuAction=async name=>{await page.getByRole('button',{name:'Открыть меню',exact:true}).click();await page.getByRole('menuitem',{name,exact:true}).click();};
  await page.goto('http://localhost:5173/');
  await page.getByRole('button',{name:'Войти через Microsoft',exact:true}).click();
- await page.getByRole('button',{name:'Выбрать Excel',exact:true}).click();
+ await menuAction('Мой OneDrive');
  await page.getByRole('button',{name:/Reports/}).click();await page.getByRole('button',{name:/Report.xlsx/}).click();
  await page.getByRole('heading',{name:'Данные по дням',exact:true}).waitFor();
  assert.equal(pages,2);assert.equal(downloads,1);
  assert.ok((await page.locator('.dashboard-card.metric').first().textContent()).includes('123,00'));
+ const calendar=page.getByRole('button',{name:'Выбрать дату: С даты',exact:true});
+ await calendar.click();await page.getByRole('dialog',{name:'Календарь: С даты'}).waitFor();await calendar.click();await page.getByRole('dialog',{name:'Календарь: С даты'}).waitFor({state:'hidden'});
+ await calendar.click();await page.getByRole('heading',{name:'Netting Dashboard',exact:true}).click();await page.getByRole('dialog',{name:'Календарь: С даты'}).waitFor({state:'hidden'});
+ await calendar.click();await page.keyboard.press('Escape');await page.getByRole('dialog',{name:'Календарь: С даты'}).waitFor({state:'hidden'});
+ await calendar.click();await page.getByRole('button',{name:day.split('-').reverse().join('/'),exact:true}).click();await page.getByRole('dialog',{name:'Календарь: С даты'}).waitFor({state:'hidden'});assert.equal(await page.getByRole('textbox',{name:'С даты',exact:true}).inputValue(),day.split('-').reverse().join('/'));
+ const handle=page.locator('.drag-handle').first();await handle.hover();assert.ok(await handle.evaluate(e=>{const a=e.getBoundingClientRect(),b=e.querySelector('svg').getBoundingClientRect();return Math.abs((a.left+a.width/2)-(b.left+b.width/2))<1&&Math.abs((a.top+a.height/2)-(b.top+b.height/2))<1;}),'Grip icon is centered');
+ await page.getByRole('button',{name:'Тёмная тема',exact:true}).click();assert.equal(await page.getByRole('button',{name:'Светлая тема',exact:true}).count(),1);
+ await page.getByRole('button',{name:'Открыть меню',exact:true}).click();await page.keyboard.press('Escape');await page.getByRole('menuitem',{name:'Выйти',exact:true}).waitFor({state:'hidden'});
+ await page.evaluate(()=>document.fonts.ready);assert.equal(await page.evaluate(()=>document.fonts.check('14px "Inter Variable"','Дашборд')),true,'Local Cyrillic font loaded');
  const parsed=await page.evaluate(async base64=>{const {readDashboard}=await import('/src/excel.ts');return readDashboard(Uint8Array.from(atob(base64),c=>c.charCodeAt(0)).buffer,'Report.xlsx');},bytes.toString('base64'));
  assert.deepEqual({sheet:parsed.sheet,points:parsed.points,operations:parsed.operations},expected,'Browser parser matches desktop including cached formulas');
  await page.getByRole('button',{name:'Обновить',exact:true}).click();await page.waitForFunction(()=>!document.querySelector('[aria-busy="true"]'));assert.equal(downloads,1,'Unchanged version is not downloaded again');
  tag='version-2';await page.getByRole('button',{name:'Обновить',exact:true}).click();await page.waitForFunction(()=>!document.querySelector('[aria-busy="true"]'));assert.equal(downloads,2);
  forbidden=true;await page.getByRole('button',{name:'Обновить',exact:true}).click();await page.getByRole('alert').waitFor();assert.ok((await page.getByRole('alert').textContent()).includes('Показаны данные последнего'));assert.equal(await page.locator('.dashboard-card').count(),13);forbidden=false;
  for(const width of [390,768,1440]){
- await page.setViewportSize({width,height:900});await page.waitForFunction(()=>document.documentElement.scrollWidth<=innerWidth,{},{timeout:5000});
+ await page.setViewportSize({width,height:900});await page.waitForFunction(()=>document.documentElement.scrollWidth<=innerWidth,{},{timeout:5000}).catch(async error=>{console.log(await page.evaluate(()=>[...document.querySelectorAll('body *')].filter(e=>e.getBoundingClientRect().right>innerWidth+1).map(e=>({tag:e.tagName,cls:e.className,right:e.getBoundingClientRect().right})).slice(0,25)));await page.screenshot({path:'/private/tmp/netting-ui-overflow.png',fullPage:true});throw error;});
  const overflow=await page.evaluate(()=>[...document.querySelectorAll('body *')].filter(e=>e.getBoundingClientRect().right>innerWidth+1 && getComputedStyle(e).position!=='absolute').map(e=>[e.tagName,e.className,e.getBoundingClientRect().right]).slice(0,20)); if(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth))console.log('Overflow',overflow);
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,`No page overflow at ${width}`);
  const columns=await page.locator('.dashboard-grid').evaluate(e=>getComputedStyle(e).gridTemplateColumns.split(' ').length);assert.equal(columns,width===390?1:width===768?2:3);
- if(width===390){await page.getByRole('button',{name:'Открыть меню',exact:true}).click();await page.getByRole('button',{name:'Total',exact:true}).click();assert.equal(await page.locator('.dashboard-card').count(),7);await page.getByRole('button',{name:'Открыть меню',exact:true}).click();await page.getByRole('button',{name:'Обзор показателей',exact:true}).click();}
+ if(width===390){await calendar.tap();await page.getByRole('dialog',{name:'Календарь: С даты'}).waitFor();await calendar.tap();await page.getByRole('dialog',{name:'Календарь: С даты'}).waitFor({state:'hidden'});await calendar.tap();await page.getByRole('heading',{name:'Netting Dashboard',exact:true}).tap();await page.getByRole('dialog',{name:'Календарь: С даты'}).waitFor({state:'hidden'});await menuAction('Total');assert.equal(await page.locator('.dashboard-card').count(),7);await menuAction('Обзор показателей');}
  await page.screenshot({path:`/private/tmp/netting-web-${width}.png`,fullPage:true});
  }
  const saved=await page.evaluate(()=>Object.fromEntries(Object.entries(localStorage).filter(([k])=>k.startsWith('netting-source:'))));assert.deepEqual(JSON.parse(Object.values(saved)[0]),{id:'book',name:'Report.xlsx'});
  await page.reload();await page.getByRole('heading',{name:'Данные по дням',exact:true}).waitFor();assert.equal(downloads,3,'Reload restores source and reloads data into memory');
- await page.getByRole('button',{name:'Общие файлы',exact:true}).click();
+ await menuAction('Общие файлы');
+ await page.getByRole('button',{name:/OneDrive · colleague/}).click();await page.getByRole('button',{name:'Документы',exact:true}).click();await page.getByRole('button',{name:'Назад',exact:true}).click();await page.getByRole('button',{name:'Документы',exact:true}).click();
  await page.getByRole('button',{name:/RUB RATES LOG.xlsx/}).click();await page.waitForFunction(()=>!document.querySelector('[aria-busy="true"]'));assert.equal(sharedReads,2,'Missing selected annotation triggers full metadata retry');assert.equal(downloads,4,'Same item id in another drive must not reuse own-drive cache');
  const sharedSaved=await page.evaluate(()=>JSON.parse(localStorage.getItem('netting-source:test-user')));assert.deepEqual(sharedSaved,{id:'book',name:'RUB RATES LOG.xlsx',driveId:'colleague-drive'});
  await page.reload();await page.getByRole('heading',{name:'Данные по дням',exact:true}).waitFor();assert.equal(downloads,5);assert.equal(sharedReads,4,'Restored shared source retries full metadata in colleague drive');
  invalid=true;tag='version-3';await page.getByRole('button',{name:'Обновить',exact:true}).click();await page.getByRole('alert').waitFor();assert.equal(await page.locator('.dashboard-card').count(),13);
  missingDownload=true;invalid=false;tag='version-4';await page.getByRole('button',{name:'Обновить',exact:true}).click();await page.getByText(/не предоставил адрес её скачивания/).waitFor();assert.equal(await page.getByRole('button',{name:'Войти снова',exact:true}).count(),0,'Missing download URL is not an authentication failure');
  missingDownload=false;remoteFull=true;await page.getByRole('button',{name:'Повторить загрузку',exact:true}).click();await page.waitForFunction(()=>!document.querySelector('[aria-busy="true"]'));assert.equal(await page.getByRole('alert').count(),0,'Retry resolves remoteItem against origin drive');
- await page.getByRole('button',{name:'Выйти',exact:true}).click();await page.getByRole('button',{name:'Войти через Microsoft',exact:true}).waitFor();assert.equal(await page.locator('.dashboard-card').count(),0);
- assert.deepEqual(errors,[]);console.log('Web checks passed: sign-in UI, paginated picker, formula parity, version checks, error retention, own/shared source restoration, cross-drive cache separation, read-only shared search, missing download annotation fallback, remoteItem resolution, download retry UI, logout and 390/768/1440 layouts. Authentication is mocked; real Microsoft sign-in needs user verification.');
+ await menuAction('Выйти');await page.getByRole('dialog',{name:'Выйти из дашборда?'}).waitFor();await page.getByRole('button',{name:'Остаться',exact:true}).click();assert.equal(await page.locator('.dashboard-card').count(),13,'Cancel logout preserves data');
+ await menuAction('Выйти');await page.getByRole('dialog',{name:'Выйти из дашборда?'}).waitFor();await page.keyboard.press('Escape');await page.getByRole('dialog',{name:'Выйти из дашборда?'}).waitFor({state:'hidden'});assert.equal(await page.locator('.dashboard-card').count(),13);
+ await menuAction('Выйти');await page.getByRole('button',{name:'Выйти',exact:true}).click();await page.getByRole('button',{name:'Войти через Microsoft',exact:true}).waitFor();assert.equal(await page.locator('.dashboard-card').count(),0);
+ assert.deepEqual(errors,[]);console.log('Web checks passed: mouse/touch calendar dismissal, menu, logout confirmation and cancellation, folder catalog, local Cyrillic font, centered grip, 390/768/1440 layouts, Excel parsing, loading and refresh. Microsoft authentication is mocked.');
  } finally {await browser.close();await fs.unlink(fixture);}
 })().catch(e=>{console.error(e);process.exitCode=1;});

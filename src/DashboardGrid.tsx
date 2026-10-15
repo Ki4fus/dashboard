@@ -3,6 +3,7 @@ import {DndContext, DragOverlay, KeyboardSensor, PointerSensor, closestCenter, u
 import {SortableContext, useSortable, arrayMove, rectSortingStrategy, sortableKeyboardCoordinates, defaultAnimateLayoutChanges} from '@dnd-kit/sortable';
 import {CSS} from '@dnd-kit/utilities';
 import {Tooltip} from '@gravity-ui/uikit';
+import {AppIcon} from './Icons';
 import {cardHelp} from './cardHelp';
 export type DashboardCard = {id: string; title: string; kind: 'metric' | 'panel'; content: React.ReactNode};
 const STORAGE_KEY = 'netting.dashboard.card-order.v1';
@@ -18,7 +19,7 @@ export function normalizeOrder(saved: unknown, ids: string[]) {
 function SortableCard({card, loading}: {card: DashboardCard; loading: boolean}) {
   const {attributes,listeners,setNodeRef,transform,transition,isDragging} = useSortable({id:card.id, disabled:loading, animateLayoutChanges: args=>defaultAnimateLayoutChanges({...args, wasDragging:true})});
   return <article ref={setNodeRef} aria-busy={loading} className={`dashboard-card ${card.kind} ${isDragging ? 'is-dragging' : ''} ${loading ? 'is-loading' : ''}`} style={{transform:CSS.Transform.toString(transform),transition}}>
-    <button disabled={loading} className="drag-handle" {...attributes} {...listeners} aria-label={`Переместить: ${card.title}`} title="Перетащите карточку. С клавиатуры: пробел, стрелки, пробел.">⠿</button>
+    <button disabled={loading} className="drag-handle" {...attributes} {...listeners} aria-label={`Переместить: ${card.title}`} title="Перетащите карточку. С клавиатуры: пробел, стрелки, пробел."><AppIcon name="grip" size={22}/></button>
     <div className="card-content" aria-hidden={loading || undefined}><CardContent card={card}/></div>
     {loading && <div className={`card-skeleton ${card.kind}`} aria-hidden="true"><span className="skeleton-bar skeleton-title"/>{card.kind === 'metric' ? <><span className="skeleton-bar skeleton-value"/><span className="skeleton-bar skeleton-caption"/></> : <><span className="skeleton-bar skeleton-caption"/><div className="skeleton-panel"/></>}</div>}
   </article>;

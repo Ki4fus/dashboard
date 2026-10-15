@@ -1,16 +1,23 @@
 import React from 'react';
-import {Button, TextInput} from '@gravity-ui/uikit';
+import {Button, TextInput, DropdownMenu, Modal} from '@gravity-ui/uikit';
 import {auth, initialized, signIn, listItems, loadItem, restoreSource, saveSource, searchSharedFiles, itemKey, OneDriveError, type Item} from './oneDrive';
+import {createPortal} from 'react-dom';
+import {AppIcon} from './Icons';
+import {SharedCatalog} from './SharedCatalog';
 import type {Data} from './data';
 
-export function OneDriveSource({onData,onBusy}: {onData:(data:Data|null)=>void;onBusy:(busy:boolean)=>void}) {
+export function OneDriveSource({onData,onBusy,toolsElement,navigation,section,onSection}: {onData:(data:Data|null)=>void;onBusy:(busy:boolean)=>void;toolsElement:HTMLElement|null;navigation:{id:string;label:string}[];section:string;onSection:(id:string)=>void}) {
   const [ready,setReady] = React.useState(false);
   const [account,setAccount] = React.useState('');
   const [source,setSource] = React.useState<Item|null>(null);
   const [items,setItems] = React.useState<Item[]>([]);
   const [trail,setTrail] = React.useState<Item[]>([]);
   const [mode,setMode] = React.useState<'own'|'shared'>('own');
-  const [query,setQuery] = React.useState('RUB RATES LOG');
+  const [query,setQuery] = React.useState('');
+  const [menuOpen,setMenuOpen] = React.useState(false);
+  const [confirmLogout,setConfirmLogout] = React.useState(false);
+  const [catalogVersion,setCatalogVersion] = React.useState(0);
+  const cancelLogout=React.useRef<HTMLButtonElement>(null);
   const [searchedQuery,setSearchedQuery] = React.useState('');
   const [more,setMore] = React.useState(false);
   const [offset,setOffset] = React.useState(0);
@@ -47,7 +54,7 @@ export function OneDriveSource({onData,onBusy}: {onData:(data:Data|null)=>void;o
   const search = async (nextOffset=0) => {
     if (working.current) return;
     working.current=true;setBusy(true);setMode('shared');setPicker(true);setError('');setNeedsSignIn(false);setRetryItem(null);
-    if (!nextOffset) setItems([]);
+    if (!nextOffset) {setItems([]);setCatalogVersion(value=>value+1);}
     const term=nextOffset ? searchedQuery : query;
     try {
       const result=await searchSharedFiles(term,nextOffset);
@@ -77,22 +84,25 @@ export function OneDriveSource({onData,onBusy}: {onData:(data:Data|null)=>void;o
     generation.current++;cache.current=undefined;onData(null);setSource(null);setAccount('');setItems([]);setPicker(false);setError('');
     try{await auth.logoutRedirect({account:auth.getActiveAccount() ?? undefined});}catch{setError('Не удалось завершить выход Microsoft. Обновите страницу.');}
   };
-  return <section className={`cloud-source ${!account ? 'welcome' : ''}`} aria-label="Подключение OneDrive">
+  return <>
+  {toolsElement && createPortal(<DropdownMenu switcherWrapperClassName={account?undefined:'signed-out-menu'} size="l" open={menuOpen} onOpenToggle={setMenuOpen} icon={<AppIcon name="menu"/>} defaultSwitcherProps={{view:'flat','aria-label':'Открыть меню',className:'icon-button',title:'Меню'}} popupProps={{placement:'bottom-end'}} items={[
+    navigation.map(item=>({text:item.label,action:()=>onSection(item.id),className:'mobile-nav-item',selected:section===item.id})),
+    ...(account ? [[{text:'Мой OneDrive',iconStart:<AppIcon name="cloud" size={18}/>,disabled:busy,action:()=>void browse([])},{text:'Общие файлы',iconStart:<AppIcon name="folder" size={18}/>,disabled:busy,action:()=>void search()}],[{text:'Выйти',iconStart:<AppIcon name="logout" size={18}/>,disabled:busy,action:()=>setConfirmLogout(true)}]] : []),
+  ]}/>,toolsElement)}
+  <Modal open={confirmLogout} onOpenChange={setConfirmLogout} aria-labelledby="logout-title" initialFocus={cancelLogout} contentClassName="logout-dialog"><div className="dialog-symbol"><AppIcon name="logout" size={24}/></div><h2 id="logout-title">Выйти из дашборда?</h2><p>Данные текущего сеанса будут очищены. Для просмотра дашборда потребуется снова войти через Microsoft.</p><div className="dialog-actions"><Button ref={cancelLogout} size="l" onClick={()=>setConfirmLogout(false)}>Остаться</Button><Button size="l" view="action" onClick={()=>{setConfirmLogout(false);void logout();}}>Выйти</Button></div></Modal>
+  <section className={`cloud-source ${!account ? 'welcome' : ''}`} aria-label="Подключение OneDrive">
     {!account ? <><h2>Ваш дашборд из OneDrive</h2><p>Войдите с рабочей учётной записью Microsoft 365 и выберите Excel. Данные обрабатываются на этом устройстве.</p><Button size="l" view="action" disabled={!ready} onClick={()=>void login()}>Войти через Microsoft</Button></> : <>
-      <div className="cloud-toolbar"><div><b>OneDrive · {account}</b><p>{source ? source.name : 'Свой Excel — «Выбрать Excel», книга коллеги — «Общие файлы»'}</p>{checked && <small>Проверено в {checked} · обновление раз в минуту</small>}</div><div className="actions">
-      <Button disabled={busy} onClick={()=>void browse([])}>{source ? 'Мой OneDrive' : 'Выбрать Excel'}</Button>
-      <Button disabled={busy} onClick={()=>void search()}>Общие файлы</Button>
-      {source && <Button disabled={busy} onClick={()=>void refresh(source)} loading={busy}>Обновить</Button>}
-      <Button disabled={busy} onClick={()=>void logout()}>Выйти</Button></div></div>
+      <div className="source-summary"><span className={`source-status ${busy?'checking':''}`} aria-hidden="true"/><div className="source-file"><span className="source-label">{source ? 'Excel из OneDrive' : 'Источник данных'}</span><b title={source?.name}>{source ? source.name : 'Выберите книгу в меню справа вверху'}</b></div><div className="source-account"><span className="source-label">Microsoft 365</span><span title={account}>{account}</span></div><div className="source-time"><span className="source-label">{busy?'Проверка обновлений…':checked ? 'Проверено '+checked : 'Обновление раз в минуту'}</span><span>{source ? 'Проверяем изменения каждую минуту' : 'Excel обрабатывается на устройстве'}</span></div>{source && <Button view="flat" className="icon-button" disabled={busy} onClick={()=>void refresh(source)} aria-label="Обновить" title="Обновить"><AppIcon name="refresh" size={18}/></Button>}</div>
       {picker && <div className="file-picker">
-        <div className="actions"><Button disabled={busy} onClick={()=>void browse([])}>Мой OneDrive</Button><Button disabled={busy} onClick={()=>void search()}>Общие файлы</Button>{mode==='own' && trail.length>0 && <Button disabled={busy} onClick={()=>void browse(trail.slice(0,-1))}>Назад</Button>}<span>{mode==='own' ? trail.map(i=>i.name).join(' / ') : 'Excel, доступные вашей учётной записи'}</span><Button disabled={busy} onClick={()=>setPicker(false)}>Закрыть</Button></div>
+        <div className="picker-heading"><h2>{mode==='own'?'Мой OneDrive':'Общие файлы'}</h2><Button view="flat" className="icon-button" disabled={busy} onClick={()=>setPicker(false)} aria-label="Закрыть выбор файла"><AppIcon name="close" size={18}/></Button></div>
+        {mode==='own' && <div className="catalog-breadcrumbs"><button disabled={busy} onClick={()=>void browse([])}>Мой OneDrive</button>{trail.map((item,i)=><React.Fragment key={itemKey(item)}><span aria-hidden="true">/</span><button disabled={busy} onClick={()=>void browse(trail.slice(0,i+1))}>{item.name}</button></React.Fragment>)}{trail.length>0 && <Button disabled={busy} onClick={()=>void browse(trail.slice(0,-1))}>Назад</Button>}</div>}
         {mode==='shared' && <form className="shared-search" onSubmit={e=>{e.preventDefault();void search();}}><TextInput size="l" placeholder="Название или часть названия Excel" controlProps={{'aria-label':'Название общего Excel'}} value={query} onUpdate={setQuery}/><Button type="submit" disabled={busy}>Найти</Button></form>}
         {busy && <p role="status">Загрузка…</p>}
-        {items.length>0 ? <ul>{items.map(item=><li key={itemKey(item)}><button disabled={busy} onClick={()=>void (item.folder ? browse([...trail,item]) : refresh(item))}><span aria-hidden="true">{item.folder ? '📁' : '▦'}</span> {item.name}{item.folder ? ' /' : ''}{mode==='shared' && item.webUrl && <small className="file-location">{item.webUrl}</small>}</button></li>)}</ul> : !busy && <p>{mode==='own' ? 'В этой папке нет папок или файлов .xlsx. Если книгу предоставил коллега, откройте «Общие файлы».' : 'Книги не найдены. Уточните название. Недавно предоставленный файл может появиться в поиске с задержкой.'}</p>}
+        {mode==='shared' && items.length>0 ? <SharedCatalog items={items} busy={busy} resetKey={catalogVersion} onSelect={item=>void refresh(item)}/> : mode==='own' && items.length>0 ? <ul className="catalog-list">{items.map(item=><li key={itemKey(item)}><button disabled={busy} onClick={()=>void (item.folder ? browse([...trail,item]) : refresh(item))}><span className={`catalog-icon ${item.folder?'':'file'}`}><AppIcon name={item.folder?'folder':'file'}/></span><span className="catalog-name">{item.name}</span>{item.folder && <AppIcon name="chevronRight" size={16}/>}</button></li>)}</ul> : !busy && <p>{mode==='own' ? 'В этой папке нет папок или файлов .xlsx. Книги коллег доступны через «Общие файлы» в меню.' : 'Книги не найдены. Уточните название или очистите поиск. Новая общая книга может появиться с задержкой.'}</p>}
         {mode==='shared' && more && <Button disabled={busy} onClick={()=>void search(offset)}>Показать ещё</Button>}
       </div>}
     </>}
     {error && <div className="cloud-error" role="alert"><p>{error} {cache.current && 'Показаны данные последнего успешного чтения.'}</p>{account && needsSignIn ? <Button disabled={busy} onClick={()=>void login()}>Войти снова</Button> : retryItem && <Button disabled={busy} onClick={()=>void refresh(retryItem)}>Повторить загрузку</Button>}</div>}
     {source && !cache.current && !busy && !picker && <Button onClick={()=>void browse([])}>Выбрать другую книгу</Button>}
-  </section>;
+  </section></>;
 }
