@@ -24,18 +24,21 @@ export function restoreSource(): Item | null {
   try {const item = JSON.parse(localStorage.getItem(sourceKey()) ?? 'null'); return item && typeof item.id === 'string' && typeof item.name === 'string' ? {id:item.id,name:item.name,...(typeof item.driveId === 'string' ? {driveId:item.driveId} : {})} : null;} catch {return null;}
 }
 export function saveSource(item: Item) {try {localStorage.setItem(sourceKey(), JSON.stringify({id:item.id,name:item.name,...(item.driveId ? {driveId:item.driveId} : {})}));} catch {/* Storage is optional. */}}
+export class OneDriveError extends Error {
+  constructor(message: string, public requiresSignIn = false) {super(message);this.name='OneDriveError';}
+}
 export async function graph<T>(path: string, body?: unknown): Promise<T> {
   await initialized;
   const account = auth.getActiveAccount();
-  if (!account) throw new Error('Войдите через Microsoft.');
+  if (!account) throw new OneDriveError('Войдите через Microsoft.',true);
   let token;
   try {token = await auth.acquireTokenSilent({scopes, account});}
-  catch (e) {if (e instanceof InteractionRequiredAuthError) throw new Error('Сеанс Microsoft истёк. Нажмите «Войти снова».'); throw e;}
+  catch (e) {if (e instanceof InteractionRequiredAuthError) throw new OneDriveError('Требуется подтверждение входа Microsoft. Нажмите «Войти снова».',true); throw e;}
   const url = new URL(path.startsWith('https:') ? path : `https://graph.microsoft.com/v1.0${path}`);
   if (url.origin !== 'https://graph.microsoft.com' || !url.pathname.startsWith('/v1.0/')) throw new Error('Недопустимый адрес Microsoft Graph.');
-  const response = await fetch(url, {method: body ? 'POST' : 'GET',headers:{Authorization:`Bearer ${token.accessToken}`,...(body ? {'Content-Type':'application/json'} : {})},...(body ? {body:JSON.stringify(body)} : {}),cache:'no-store'});
+  const response = await fetch(url, {method: body ? 'POST' : 'GET',headers:{Authorization:`Bearer ${token.accessToken}`,...(body ? {'Content-Type':'application/json'} : {Prefer:'odata.include-annotations="*"'})},...(body ? {body:JSON.stringify(body)} : {}),cache:'no-store'});
   if (!response.ok) {
-    if (response.status === 401) throw new Error('Сеанс Microsoft истёк. Нажмите «Войти снова».');
+    if (response.status === 401) throw new OneDriveError('Требуется подтверждение входа Microsoft. Нажмите «Войти снова».',true);
     if (response.status === 403) throw new Error('Microsoft запретил чтение. Проверьте делегированное Files.Read.All и согласие вашей организации.');
     if (response.status === 404) throw new Error('Файл или папка недоступны. Проверьте доступ к книге или выберите её заново.');
     if (response.status === 429) throw new Error('Microsoft временно ограничил запросы. Попробуйте обновить позже.');
@@ -54,11 +57,21 @@ export async function listItems(folder?: string): Promise<Item[]> {
 }
 export function itemKey(item: Item) {return `${item.driveId ?? 'me'}:${item.id}`;}
 export async function loadItem(item: Item, cached?: {tag: string; data: Data}): Promise<{tag:string;data:Data;changed:boolean}> {
-  const meta = await graph<Item>(`${item.driveId ? `/drives/${encodeURIComponent(item.driveId)}` : '/me/drive'}/items/${encodeURIComponent(item.id)}?$select=id,name,eTag,cTag,size,@microsoft.graph.downloadUrl`);
+  let meta = await graph<Item>(`${item.driveId ? `/drives/${encodeURIComponent(item.driveId)}` : '/me/drive'}/items/${encodeURIComponent(item.id)}?$select=id,name,eTag,cTag,size,file,folder,remoteItem,@microsoft.graph.downloadUrl`);
   const tag = meta.cTag ?? meta.eTag ?? '';
   if (cached && tag && tag === cached.tag) return {...cached,changed:false};
+  // Retry without $select when the download annotation is missing.
+  // Do not assume missing metadata means that the user must sign in again.
+  const path = `${item.driveId ? `/drives/${encodeURIComponent(item.driveId)}` : '/me/drive'}/items/${encodeURIComponent(item.id)}`;
+  if (!meta['@microsoft.graph.downloadUrl']) meta = await graph<Item>(path);
+  const remote = (meta as Item & {remoteItem?:{id?:string;parentReference?:{driveId?:string}}}).remoteItem;
+  if (!meta['@microsoft.graph.downloadUrl'] && remote?.id && remote.parentReference?.driveId) {
+    meta = await graph<Item>(`/drives/${encodeURIComponent(remote.parentReference.driveId)}/items/${encodeURIComponent(remote.id)}`);
+  }
   const download = meta['@microsoft.graph.downloadUrl'];
-  if (!download || new URL(download).protocol !== 'https:') throw new Error('Microsoft не вернул адрес загрузки Excel.');
+  let validDownload = false;
+  try {validDownload = typeof download === 'string' && new URL(download).protocol === 'https:';} catch {/* Invalid URLs must never be requested. */}
+  if (!validDownload || !download) throw new OneDriveError('Microsoft вернул сведения о книге, но не предоставил адрес её скачивания. Повторите загрузку. Если ошибка сохраняется, проверьте, разрешено ли скачивание этой книги в OneDrive и политиками организации.');
   const response = await fetch(download, {cache:'no-store',credentials:'omit',referrerPolicy:'no-referrer'});
   if (!response.ok) throw new Error('Не удалось загрузить Excel. Повторите обновление.');
   const data = await readDashboard(await response.arrayBuffer(), meta.name);

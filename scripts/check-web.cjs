@@ -14,7 +14,7 @@ const {readDashboard} = require('../electron/excel.cjs');
  const browser=await chromium.launch({executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',headless:true});
  try {
  const page=await browser.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));
- let tag='version-1',downloads=0,forbidden=false,invalid=false,pages=0,sharedReads=0;
+ let tag='version-1',downloads=0,forbidden=false,invalid=false,pages=0,sharedReads=0,missingDownload=false,remoteFull=false;
  const authMock=`export class InteractionRequiredAuthError extends Error {};
  export const BrowserCacheLocation={SessionStorage:'sessionStorage'};
  export class PublicClientApplication {
@@ -31,7 +31,7 @@ const {readDashboard} = require('../electron/excel.cjs');
   if(url.pathname.endsWith('/search/query')) {assert.equal(route.request().method(),'POST');const request=route.request().postDataJSON().requests[0];assert.deepEqual(request.entityTypes,['driveItem']);assert.ok(request.query.queryString.includes('RUB RATES LOG'));body={value:[{hitsContainers:[{moreResultsAvailable:false,hits:[{hitId:'book',resource:{id:'book',name:'RUB RATES LOG.xlsx',webUrl:'https://example.sharepoint.com/personal/colleague/Documents/RUB%20RATES%20LOG.xlsx',parentReference:{driveId:'colleague-drive'},file:{}}}]}]}]};}
   else if(url.pathname.endsWith('/root/children'))body={value:[{id:'folder',name:'Reports',folder:{}}]};
   else if(url.pathname.endsWith('/folder/children')) {pages++;body=url.searchParams.has('page')?{value:[{id:'book',name:'Report.xlsx',file:{}}]}:{value:[], '@odata.nextLink':'https://graph.microsoft.com/v1.0/me/drive/items/folder/children?page=2'};}
-  else {if(url.pathname.includes('/drives/colleague-drive/'))sharedReads++;body={id:'book',name:url.pathname.includes('/drives/')?'RUB RATES LOG.xlsx':'Report.xlsx',cTag:tag,'@microsoft.graph.downloadUrl':'https://download.example.com/book.xlsx'};}
+  else {const shared=url.pathname.includes('/drives/colleague-drive/');if(shared)sharedReads++;body={id:'book',name:url.pathname.includes('/drives/')?'RUB RATES LOG.xlsx':'Report.xlsx',cTag:tag,'@microsoft.graph.downloadUrl':'https://download.example.com/book.xlsx'};if(missingDownload || (shared && url.searchParams.has('$select')))delete body['@microsoft.graph.downloadUrl'];if(shared && remoteFull && !url.searchParams.has('$select')){delete body['@microsoft.graph.downloadUrl'];body.remoteItem={id:'actual',parentReference:{driveId:'origin-drive'}};}}
   await route.fulfill({contentType:'application/json',body:JSON.stringify(body)});
  });
  await page.route('https://download.example.com/**',async route=>{downloads++;assert.equal(route.request().headers().authorization,undefined);await route.fulfill({body:invalid?Buffer.from('invalid excel'):bytes});});
@@ -58,11 +58,13 @@ const {readDashboard} = require('../electron/excel.cjs');
  const saved=await page.evaluate(()=>Object.fromEntries(Object.entries(localStorage).filter(([k])=>k.startsWith('netting-source:'))));assert.deepEqual(JSON.parse(Object.values(saved)[0]),{id:'book',name:'Report.xlsx'});
  await page.reload();await page.getByRole('heading',{name:'Данные по дням',exact:true}).waitFor();assert.equal(downloads,3,'Reload restores source and reloads data into memory');
  await page.getByRole('button',{name:'Общие файлы',exact:true}).click();
- await page.getByRole('button',{name:/RUB RATES LOG.xlsx/}).click();await page.waitForFunction(()=>!document.querySelector('[aria-busy="true"]'));assert.equal(sharedReads,1);assert.equal(downloads,4,'Same item id in another drive must not reuse own-drive cache');
+ await page.getByRole('button',{name:/RUB RATES LOG.xlsx/}).click();await page.waitForFunction(()=>!document.querySelector('[aria-busy="true"]'));assert.equal(sharedReads,2,'Missing selected annotation triggers full metadata retry');assert.equal(downloads,4,'Same item id in another drive must not reuse own-drive cache');
  const sharedSaved=await page.evaluate(()=>JSON.parse(localStorage.getItem('netting-source:test-user')));assert.deepEqual(sharedSaved,{id:'book',name:'RUB RATES LOG.xlsx',driveId:'colleague-drive'});
- await page.reload();await page.getByRole('heading',{name:'Данные по дням',exact:true}).waitFor();assert.equal(downloads,5);assert.equal(sharedReads,2,'Restored shared source reads colleague drive');
+ await page.reload();await page.getByRole('heading',{name:'Данные по дням',exact:true}).waitFor();assert.equal(downloads,5);assert.equal(sharedReads,4,'Restored shared source retries full metadata in colleague drive');
  invalid=true;tag='version-3';await page.getByRole('button',{name:'Обновить',exact:true}).click();await page.getByRole('alert').waitFor();assert.equal(await page.locator('.dashboard-card').count(),13);
+ missingDownload=true;invalid=false;tag='version-4';await page.getByRole('button',{name:'Обновить',exact:true}).click();await page.getByText(/не предоставил адрес её скачивания/).waitFor();assert.equal(await page.getByRole('button',{name:'Войти снова',exact:true}).count(),0,'Missing download URL is not an authentication failure');
+ missingDownload=false;remoteFull=true;await page.getByRole('button',{name:'Повторить загрузку',exact:true}).click();await page.waitForFunction(()=>!document.querySelector('[aria-busy="true"]'));assert.equal(await page.getByRole('alert').count(),0,'Retry resolves remoteItem against origin drive');
  await page.getByRole('button',{name:'Выйти',exact:true}).click();await page.getByRole('button',{name:'Войти через Microsoft',exact:true}).waitFor();assert.equal(await page.locator('.dashboard-card').count(),0);
- assert.deepEqual(errors,[]);console.log('Web checks passed: sign-in UI, paginated picker, formula parity, version checks, error retention, own/shared source restoration, cross-drive cache separation, read-only shared search, logout and 390/768/1440 layouts. Authentication is mocked; real Microsoft sign-in needs user verification.');
+ assert.deepEqual(errors,[]);console.log('Web checks passed: sign-in UI, paginated picker, formula parity, version checks, error retention, own/shared source restoration, cross-drive cache separation, read-only shared search, missing download annotation fallback, remoteItem resolution, download retry UI, logout and 390/768/1440 layouts. Authentication is mocked; real Microsoft sign-in needs user verification.');
  } finally {await browser.close();await fs.unlink(fixture);}
 })().catch(e=>{console.error(e);process.exitCode=1;});

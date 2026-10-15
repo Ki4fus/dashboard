@@ -1,6 +1,6 @@
 import React from 'react';
 import {Button, TextInput} from '@gravity-ui/uikit';
-import {auth, initialized, signIn, listItems, loadItem, restoreSource, saveSource, searchSharedFiles, itemKey, type Item} from './oneDrive';
+import {auth, initialized, signIn, listItems, loadItem, restoreSource, saveSource, searchSharedFiles, itemKey, OneDriveError, type Item} from './oneDrive';
 import type {Data} from './data';
 
 export function OneDriveSource({onData,onBusy}: {onData:(data:Data|null)=>void;onBusy:(busy:boolean)=>void}) {
@@ -17,13 +17,15 @@ export function OneDriveSource({onData,onBusy}: {onData:(data:Data|null)=>void;o
   const [picker,setPicker] = React.useState(false);
   const [busy,setBusy] = React.useState(false);
   const [error,setError] = React.useState('');
+  const [needsSignIn,setNeedsSignIn] = React.useState(false);
+  const [retryItem,setRetryItem] = React.useState<Item|null>(null);
   const [checked,setChecked] = React.useState('');
   const cache = React.useRef<{id:string;tag:string;data:Data}|undefined>(undefined);
   const working = React.useRef(false);
   const generation = React.useRef(0);
   const refresh = React.useCallback(async (item:Item) => {
     if (working.current) return;
-    working.current=true; setBusy(true); onBusy(true);
+    working.current=true; setBusy(true); onBusy(true);setError('');setNeedsSignIn(false);setRetryItem(null);
     const current = generation.current;
     try {
       const previous = cache.current?.id === itemKey(item) ? cache.current : undefined;
@@ -32,26 +34,26 @@ export function OneDriveSource({onData,onBusy}: {onData:(data:Data|null)=>void;o
       cache.current={id:itemKey(item),tag:result.tag,data:result.data};
       onData(result.data); setSource(item); saveSource(item); setPicker(false); setError('');
       setChecked(new Date().toLocaleTimeString('ru-RU'));
-    } catch(e) {if (current === generation.current) setError(e instanceof Error ? e.message : 'Не удалось прочитать Excel.');}
+    } catch(e) {if (current === generation.current) {setError(e instanceof Error ? e.message : 'Не удалось прочитать Excel.');setNeedsSignIn(e instanceof OneDriveError && e.requiresSignIn);setRetryItem(item);}}
     finally {working.current=false; setBusy(false); onBusy(false);}
   },[onData,onBusy]);
   const browse = async (next:Item[]) => {
     if (working.current) return;
-    working.current=true;setMode('own');setBusy(true);setPicker(true);setError('');setItems([]);
+    working.current=true;setMode('own');setBusy(true);setPicker(true);setError('');setNeedsSignIn(false);setRetryItem(null);setItems([]);
     try {setItems(await listItems(next.at(-1)?.id));setTrail(next);}
-    catch(e) {setError(e instanceof Error ? e.message : 'Не удалось открыть папку.');}
+    catch(e) {setError(e instanceof Error ? e.message : 'Не удалось открыть папку.');setNeedsSignIn(e instanceof OneDriveError && e.requiresSignIn);}
     finally {working.current=false;setBusy(false);}
   };
   const search = async (nextOffset=0) => {
     if (working.current) return;
-    working.current=true;setBusy(true);setMode('shared');setPicker(true);setError('');
+    working.current=true;setBusy(true);setMode('shared');setPicker(true);setError('');setNeedsSignIn(false);setRetryItem(null);
     if (!nextOffset) setItems([]);
     const term=nextOffset ? searchedQuery : query;
     try {
       const result=await searchSharedFiles(term,nextOffset);
       setItems(previous=>nextOffset ? [...new Map([...previous,...result.items].map(item=>[itemKey(item),item])).values()] : result.items);
       setMore(result.more);setOffset(nextOffset+100);setSearchedQuery(term);
-    } catch(e) {setError(e instanceof Error ? e.message : 'Не удалось найти общие файлы.');}
+    } catch(e) {setError(e instanceof Error ? e.message : 'Не удалось найти общие файлы.');setNeedsSignIn(e instanceof OneDriveError && e.requiresSignIn);}
     finally {working.current=false;setBusy(false);}
   };
   React.useEffect(()=>{
@@ -90,7 +92,7 @@ export function OneDriveSource({onData,onBusy}: {onData:(data:Data|null)=>void;o
         {mode==='shared' && more && <Button disabled={busy} onClick={()=>void search(offset)}>Показать ещё</Button>}
       </div>}
     </>}
-    {error && <div className="cloud-error" role="alert"><p>{error} {cache.current && 'Показаны данные последнего успешного чтения.'}</p>{account && <Button onClick={()=>void login()}>Войти снова</Button>}</div>}
+    {error && <div className="cloud-error" role="alert"><p>{error} {cache.current && 'Показаны данные последнего успешного чтения.'}</p>{account && needsSignIn ? <Button disabled={busy} onClick={()=>void login()}>Войти снова</Button> : retryItem && <Button disabled={busy} onClick={()=>void refresh(retryItem)}>Повторить загрузку</Button>}</div>}
     {source && !cache.current && !busy && !picker && <Button onClick={()=>void browse([])}>Выбрать другую книгу</Button>}
   </section>;
 }
