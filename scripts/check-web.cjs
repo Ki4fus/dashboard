@@ -74,7 +74,7 @@ const {readDashboard} = require('../electron/excel.cjs');
  assert.equal(await topButtons.count(),2);
  const topBoxes=await topButtons.evaluateAll(nodes=>nodes.map(e=>{const r=e.getBoundingClientRect();return {x:r.x,y:r.y,w:r.width,h:r.height};}));
  assert.ok(Math.abs(topBoxes[0].y-topBoxes[1].y)<1&&Math.abs(topBoxes[0].h-topBoxes[1].h)<1,'Theme and menu share a baseline and height');
- for(const button of await page.locator('button.icon-button,button.calendar-button,button.drag-handle').all()) {
+ for(const button of await page.locator('button.icon-button,button.calendar-button,button.drag-handle,button.card-rename').all()) {
   if(!await button.isVisible())continue;await button.hover();
   assert.ok(await button.evaluate(e=>{const icon=e.querySelector('svg');if(!icon)return true;const a=e.getBoundingClientRect(),b=icon.getBoundingClientRect();return Math.abs(a.x+a.width/2-b.x-b.width/2)<1&&Math.abs(a.y+a.height/2-b.y-b.height/2)<1;}),'Button icon centered on hover');
  }
@@ -83,11 +83,28 @@ const {readDashboard} = require('../electron/excel.cjs');
   assert.ok(await button.evaluate(e=>{const text=e.querySelector('.g-button__text');if(!text)return true;const a=e.getBoundingClientRect(),b=text.getBoundingClientRect();return Math.abs(a.x+a.width/2-b.x-b.width/2)<1&&Math.abs(a.y+a.height/2-b.y-b.height/2)<1;}),'Button text wrapper centered');
  }
  const columns=await page.locator('.dashboard-grid').evaluate(e=>getComputedStyle(e).gridTemplateColumns.split(' ').length);assert.equal(columns,width===390?1:width===768?2:3);
- if(width===390){await calendar.tap();await page.getByRole('dialog',{name:'Календарь: С даты'}).waitFor();await calendar.tap();await page.getByRole('dialog',{name:'Календарь: С даты'}).waitFor({state:'hidden'});await calendar.tap();await page.getByRole('heading',{name:'Netting Dashboard',exact:true}).tap();await page.getByRole('dialog',{name:'Календарь: С даты'}).waitFor({state:'hidden'});await menuAction('Total');assert.equal(await page.locator('.dashboard-card').count(),7);await menuAction('Обзор показателей');}
+ if(width===390){await page.getByRole('button',{name:/^Переименовать:/}).first().tap();await page.getByRole('dialog',{name:'Название карточки',exact:true}).waitFor();await page.getByRole('button',{name:'Отмена',exact:true}).tap();await page.getByRole('dialog',{name:'Название карточки',exact:true}).waitFor({state:'hidden'});await calendar.tap();await page.getByRole('dialog',{name:'Календарь: С даты'}).waitFor();await calendar.tap();await page.getByRole('dialog',{name:'Календарь: С даты'}).waitFor({state:'hidden'});await calendar.tap();await page.getByRole('heading',{name:'Netting Dashboard',exact:true}).tap();await page.getByRole('dialog',{name:'Календарь: С даты'}).waitFor({state:'hidden'});await menuAction('Total');assert.equal(await page.locator('.dashboard-card').count(),7);await menuAction('Обзор показателей');}
  await page.screenshot({path:`/private/tmp/netting-web-${width}.png`,fullPage:true});
  }
+ assert.equal(await page.getByRole('button',{name:/^Переименовать:/}).count(),13,'Every card can be renamed');
+ const metricTitle='TOTAL · за период, USD',customMetric='Прибыль за период';
+ const chartTitle='Динамика TOTAL',customChart='Результат по дням';
+ await page.getByRole('button',{name:`Переименовать: ${metricTitle}`,exact:true}).click();
+ const renameDialog=page.getByRole('dialog',{name:'Название карточки',exact:true});await renameDialog.waitFor();
+ const nameInput=renameDialog.getByRole('textbox',{name:'Название карточки',exact:true});
+ await nameInput.fill('   ');await renameDialog.getByRole('button',{name:'Сохранить',exact:true}).click();await renameDialog.getByText('Введите название карточки.',{exact:true}).waitFor();
+ await nameInput.fill(customMetric);await nameInput.press('Enter');await renameDialog.waitFor({state:'hidden'});
+ await page.locator('.sidebar-nav').getByRole('button',{name:'Total',exact:true}).click();assert.equal(await page.getByRole('button',{name:`Переименовать: ${customMetric}`,exact:true}).count(),1,'Name is shared across sections');
+ await page.locator('.sidebar-nav').getByRole('button',{name:'Обзор показателей',exact:true}).click();
+ await page.getByRole('button',{name:`Переименовать: ${chartTitle}`,exact:true}).click();await renameDialog.getByRole('textbox',{name:'Название карточки',exact:true}).fill(customChart);await renameDialog.getByRole('button',{name:'Сохранить',exact:true}).click();await renameDialog.waitFor({state:'hidden'});
+ assert.equal(await page.getByRole('heading',{name:customChart,exact:true}).count(),1,'Panel heading uses custom title');
  const saved=await page.evaluate(()=>Object.fromEntries(Object.entries(localStorage).filter(([k])=>k.startsWith('netting-source:'))));assert.deepEqual(JSON.parse(Object.values(saved)[0]),{id:'book',name:'Report.xlsx'});
  await page.reload();await page.getByRole('heading',{name:'Данные по дням',exact:true}).waitFor();assert.equal(downloads,3,'Reload restores source and reloads data into memory');
+ assert.equal(await page.getByRole('heading',{name:customChart,exact:true}).count(),1,'Panel name survives reload');
+ assert.equal(await page.getByRole('button',{name:`Как рассчитывается: ${customMetric}`,exact:true}).count(),1,'Tooltip remains available under renamed title');
+ await page.getByRole('button',{name:`Переименовать: ${customMetric}`,exact:true}).click();await renameDialog.getByRole('textbox',{name:'Название карточки',exact:true}).fill('Не сохранять');await page.keyboard.press('Escape');await renameDialog.waitFor({state:'hidden'});assert.equal(await page.getByRole('button',{name:`Переименовать: ${customMetric}`,exact:true}).count(),1,'Cancel leaves previous name intact');
+ for(const title of [customMetric,customChart]){await page.getByRole('button',{name:`Переименовать: ${title}`,exact:true}).click();await renameDialog.getByRole('button',{name:'Вернуть исходное название',exact:true}).click();await renameDialog.waitFor({state:'hidden'});}
+ assert.equal(await page.getByRole('heading',{name:chartTitle,exact:true}).count(),1,'Original panel title restored');
  await menuAction('Общие файлы');
  await page.getByRole('button',{name:/OneDrive · colleague/}).click();await page.getByRole('button',{name:'Документы',exact:true}).click();await page.getByRole('button',{name:'Назад',exact:true}).click();await page.getByRole('button',{name:'Документы',exact:true}).click();
  await page.getByRole('button',{name:/RUB RATES LOG.xlsx/}).click();await page.waitForFunction(()=>!document.querySelector('[aria-busy="true"]'));assert.equal(sharedReads,2,'Missing selected annotation triggers full metadata retry');assert.equal(downloads,4,'Same item id in another drive must not reuse own-drive cache');
@@ -99,6 +116,6 @@ const {readDashboard} = require('../electron/excel.cjs');
  await menuAction('Выйти');await page.getByRole('dialog',{name:'Выйти из дашборда?'}).waitFor();await page.getByRole('button',{name:'Остаться',exact:true}).click();assert.equal(await page.locator('.dashboard-card').count(),13,'Cancel logout preserves data');
  await menuAction('Выйти');await page.getByRole('dialog',{name:'Выйти из дашборда?'}).waitFor();await page.keyboard.press('Escape');await page.getByRole('dialog',{name:'Выйти из дашборда?'}).waitFor({state:'hidden'});assert.equal(await page.locator('.dashboard-card').count(),13);
  await menuAction('Выйти');await page.getByRole('button',{name:'Выйти',exact:true}).click();await page.getByRole('button',{name:'Войти через Microsoft',exact:true}).waitFor();assert.equal(await page.locator('.dashboard-card').count(),0);
- assert.deepEqual(errors,[]);console.log('Web checks passed: centered sign-in-only screen, aligned header and all icon/text buttons, mouse/touch calendar dismissal, menu, logout confirmation and cancellation, folder catalog, local Cyrillic font, centered grip, 390/768/1440 layouts, Excel parsing, loading and refresh. Microsoft authentication is mocked.');
+ assert.deepEqual(errors,[]);console.log('Web checks passed: card rename/validation/cancellation/reset/persistence across sections and reload, centered sign-in-only screen, aligned header and all icon/text buttons, mouse/touch calendar dismissal, menu, logout confirmation and cancellation, folder catalog, local Cyrillic font, centered grip, 390/768/1440 layouts, Excel parsing, loading and refresh. Microsoft authentication is mocked.');
  } finally {await browser.close();await fs.unlink(fixture);}
 })().catch(e=>{console.error(e);process.exitCode=1;});

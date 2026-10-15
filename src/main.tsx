@@ -5,6 +5,7 @@ import {Chart} from '@gravity-ui/charts';
 import '@fontsource-variable/inter';
 import '@gravity-ui/uikit/styles/styles.css';
 import './styles.css';
+import {useCardTitles} from './useCardTitles';
 import {AppIcon} from './Icons';
 import {DateFilter} from './DateFilter';
 import {DashboardGrid, type DashboardCard} from './DashboardGrid';
@@ -21,6 +22,7 @@ const sections: {id:Section;label:string}[] = [{id:'overview',label:'Обзор 
 const currencyColors = ['#49a2ed','#ff3765','#78d85e','#ffc43b','#b17bf2','#37c6b7','#f48b56'];
 const day = (d: string) => d.split('-').reverse().join('.');
 function App() {
+  const {titles,rename}=useCardTitles();
   const [signedIn,setSignedIn] = React.useState(desktop);
   const [toolsElement,setToolsElement] = React.useState<HTMLDivElement|null>(null);
   const [section,setSection] = React.useState<Section>('overview');
@@ -77,7 +79,7 @@ function App() {
     {(desktop || issues.length>0) && <div className="notice">{data ? `${data.name} · Прочитан ${new Date(data.updated).toLocaleTimeString('ru-RU')} · ${issues.length} строк TOTAL с пропуском или ошибкой` : 'Выберите Excel. Дата берётся из блока операций, итог — из Y строки TOTAL.'}</div>}
     <div className="filters"><DateFilter key={`from-${filterReset}`} label="С даты" value={from} onChange={setFrom}/><DateFilter key={`to-${filterReset}`} label="По дату" value={to} onChange={setTo}/><Button onClick={()=>{setFrom('');setTo('');setFilterReset(value=>value+1);}}>Все даты</Button></div>
     {from && to && from > to && <p role="alert">Начальная дата позже конечной.</p>}
-    <DashboardGrid key={section} cards={sectionCards} loading={busy} layoutId={section}/>
+    <DashboardGrid key={section} cards={sectionCards} loading={busy} layoutId={section} titles={titles} onRename={rename}/>
     </>}
     </main></div></ThemeProvider>;
 }

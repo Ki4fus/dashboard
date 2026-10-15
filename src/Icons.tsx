@@ -1,7 +1,8 @@
 import React from 'react';
-type Name = 'menu'|'sun'|'moon'|'grip'|'calendar'|'chevronLeft'|'chevronRight'|'folder'|'file'|'refresh'|'cloud'|'logout'|'close';
+type Name = 'pencil'|'menu'|'sun'|'moon'|'grip'|'calendar'|'chevronLeft'|'chevronRight'|'folder'|'file'|'refresh'|'cloud'|'logout'|'close';
 export function AppIcon({name,size=20}: {name:Name;size?:number}) {
  const paths: Record<Exclude<Name,'grip'>,React.ReactNode> = {
+  pencil:<><path d="m15 4 5 5M4 15 15 4a2.1 2.1 0 0 1 5 5L9 20l-6 1Z"/></>,
   menu:<><path d="M4 6h16M4 12h16M4 18h16"/></>,
   sun:<><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/></>,
   moon:<path d="M20.5 13.3A8.7 8.7 0 0 1 10.7 3.5 8.7 8.7 0 1 0 20.5 13.3Z"/>,
