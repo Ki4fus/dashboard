@@ -14,7 +14,7 @@ async function restoreSource() {
         return;
       }
     } catch (error) {
-      if (error.code !== 'ENOENT') throw new Error('Не удалось прочитать настройки источника. Выберите Excel заново.');
+      if (error.code !== 'ENOENT') throw new Error('Could not read source settings. Select the workbook again.');
     }
   }
 }
@@ -23,7 +23,7 @@ ipcMain.handle('excel:restore', async () => {
   return selectedFile ? readSelected() : null;
 });
 async function readSelected() {
-  if (!selectedFile) throw new Error('Сначала выберите Excel.');
+  if (!selectedFile) throw new Error('Select an Excel workbook first.');
   return {...await readDashboard(selectedFile), name: path.basename(selectedFile), updated: new Date().toISOString()};
 }
 ipcMain.handle('excel:open', async () => {

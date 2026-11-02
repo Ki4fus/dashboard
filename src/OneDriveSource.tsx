@@ -40,15 +40,15 @@ export function OneDriveSource({onData,onBusy,toolsElement,navigation,section,on
       if (current !== generation.current) return;
       cache.current={id:itemKey(item),tag:result.tag,data:result.data};
       onData(result.data); setSource(item); saveSource(item); setPicker(false); setError('');
-      setChecked(new Date().toLocaleTimeString('ru-RU'));
-    } catch(e) {if (current === generation.current) {setError(e instanceof Error ? e.message : 'Не удалось прочитать Excel.');setNeedsSignIn(e instanceof OneDriveError && e.requiresSignIn);setRetryItem(item);}}
+      setChecked(new Date().toLocaleTimeString('en-GB'));
+    } catch(e) {if (current === generation.current) {setError(e instanceof Error ? e.message : 'Could not read the Excel workbook.');setNeedsSignIn(e instanceof OneDriveError && e.requiresSignIn);setRetryItem(item);}}
     finally {working.current=false; setBusy(false); onBusy(false);}
   },[onData,onBusy]);
   const browse = async (next:Item[]) => {
     if (working.current) return;
     working.current=true;setMode('own');setBusy(true);setPicker(true);setError('');setNeedsSignIn(false);setRetryItem(null);setItems([]);
     try {setItems(await listItems(next.at(-1)?.id));setTrail(next);}
-    catch(e) {setError(e instanceof Error ? e.message : 'Не удалось открыть папку.');setNeedsSignIn(e instanceof OneDriveError && e.requiresSignIn);}
+    catch(e) {setError(e instanceof Error ? e.message : 'Could not open the folder.');setNeedsSignIn(e instanceof OneDriveError && e.requiresSignIn);}
     finally {working.current=false;setBusy(false);}
   };
   const search = async (nextOffset=0) => {
@@ -60,7 +60,7 @@ export function OneDriveSource({onData,onBusy,toolsElement,navigation,section,on
       const result=await searchSharedFiles(term,nextOffset);
       setItems(previous=>nextOffset ? [...new Map([...previous,...result.items].map(item=>[itemKey(item),item])).values()] : result.items);
       setMore(result.more);setOffset(nextOffset+100);setSearchedQuery(term);
-    } catch(e) {setError(e instanceof Error ? e.message : 'Не удалось найти общие файлы.');setNeedsSignIn(e instanceof OneDriveError && e.requiresSignIn);}
+    } catch(e) {setError(e instanceof Error ? e.message : 'Could not search shared files.');setNeedsSignIn(e instanceof OneDriveError && e.requiresSignIn);}
     finally {working.current=false;setBusy(false);}
   };
   React.useEffect(()=>{
@@ -69,7 +69,7 @@ export function OneDriveSource({onData,onBusy,toolsElement,navigation,section,on
       if(disposed)return;
       setReady(true);setAccount(auth.getActiveAccount()?.username ?? '');onSessionChange(Boolean(auth.getActiveAccount()));
       const item=restoreSource(); if(item && auth.getActiveAccount()) {setSource(item);void refresh(item);}
-    }).catch(()=>{if(!disposed){setReady(true);setError('Не удалось подготовить вход Microsoft. Обновите страницу.');}});
+    }).catch(()=>{if(!disposed){setReady(true);setError('Could not prepare Microsoft sign-in. Refresh the page.');}});
     return()=>{disposed=true;};
   },[refresh,onSessionChange]);
   React.useEffect(()=>{
@@ -79,30 +79,30 @@ export function OneDriveSource({onData,onBusy,toolsElement,navigation,section,on
     window.addEventListener('online',check);document.addEventListener('visibilitychange',check);
     return()=>{clearInterval(timer);window.removeEventListener('online',check);document.removeEventListener('visibilitychange',check);};
   },[source,account,refresh]);
-  const login=async()=>{setError('');try{await signIn();}catch{setError('Не удалось начать вход Microsoft. Попробуйте ещё раз.');}};
+  const login=async()=>{setError('');try{await signIn();}catch{setError('Could not start Microsoft sign-in. Try again.');}};
   const logout=async()=>{
     generation.current++;cache.current=undefined;onData(null);onSessionChange(false);setSource(null);setAccount('');setItems([]);setPicker(false);setError('');
-    try{await auth.logoutRedirect({account:auth.getActiveAccount() ?? undefined});}catch{setError('Не удалось завершить выход Microsoft. Обновите страницу.');}
+    try{await auth.logoutRedirect({account:auth.getActiveAccount() ?? undefined});}catch{setError('Could not complete Microsoft sign-out. Refresh the page.');}
   };
   return <>
-  {account && toolsElement && createPortal(<DropdownMenu defaultSwitcherClassName="icon-button" switcherWrapperClassName={account?undefined:'signed-out-menu'} size="l" open={menuOpen} onOpenToggle={setMenuOpen} icon={<AppIcon name="menu"/>} defaultSwitcherProps={{view:'flat','aria-label':'Открыть меню',title:'Меню'}} popupProps={{placement:'bottom-end'}} items={[
-    navigation.map(item=>({text:item.label,action:()=>onSection(item.id),className:'mobile-nav-item',selected:section===item.id})),
-    ...(account ? [[{text:'Мой OneDrive',iconStart:<AppIcon name="cloud" size={18}/>,disabled:busy,action:()=>void browse([])},{text:'Общие файлы',iconStart:<AppIcon name="folder" size={18}/>,disabled:busy,action:()=>void search()}],[{text:'Выйти',iconStart:<AppIcon name="logout" size={18}/>,disabled:busy,action:()=>setConfirmLogout(true)}]] : []),
+  {account && toolsElement && createPortal(<DropdownMenu defaultSwitcherClassName="icon-button" switcherWrapperClassName={account?undefined:'signed-out-menu'} size="l" open={menuOpen} onOpenToggle={setMenuOpen} icon={<AppIcon name="menu"/>} defaultSwitcherProps={{view:'flat','aria-label':'Open menu',title:'Menu'}} popupProps={{placement:'bottom-end'}} items={[
+    navigation.map(item=>({text:item.label,action:()=>onSection(item.id),selected:section===item.id})),
+    ...(account ? [[{text:'My OneDrive',iconStart:<AppIcon name="cloud" size={18}/>,disabled:busy,action:()=>void browse([])},{text:'Shared files',iconStart:<AppIcon name="folder" size={18}/>,disabled:busy,action:()=>void search()}],[{text:'Sign out',iconStart:<AppIcon name="logout" size={18}/>,disabled:busy,action:()=>setConfirmLogout(true)}]] : []),
   ]}/>,toolsElement)}
-  <Modal open={confirmLogout} onOpenChange={setConfirmLogout} aria-labelledby="logout-title" initialFocus={cancelLogout} contentClassName="logout-dialog"><div className="dialog-symbol"><AppIcon name="logout" size={24}/></div><h2 id="logout-title">Выйти из дашборда?</h2><p>Данные текущего сеанса будут очищены. Для просмотра дашборда потребуется снова войти через Microsoft.</p><div className="dialog-actions"><Button ref={cancelLogout} size="l" onClick={()=>setConfirmLogout(false)}>Остаться</Button><Button size="l" view="action" onClick={()=>{setConfirmLogout(false);void logout();}}>Выйти</Button></div></Modal>
-  <section className={`cloud-source ${!account ? 'welcome' : ''}`} aria-label="Подключение OneDrive">
-    {!account ? <><h2>Ваш дашборд из OneDrive</h2><p>Войдите с рабочей учётной записью Microsoft 365 и выберите Excel. Данные обрабатываются на этом устройстве.</p><Button size="l" view="action" disabled={!ready} onClick={()=>void login()}>Войти через Microsoft</Button></> : <>
-      <div className="source-summary"><span className={`source-status ${busy?'checking':''}`} aria-hidden="true"/><div className="source-file"><span className="source-label">{source ? 'Excel из OneDrive' : 'Источник данных'}</span><b title={source?.name}>{source ? source.name : 'Выберите книгу в меню справа вверху'}</b></div><div className="source-account"><span className="source-label">Microsoft 365</span><span title={account}>{account}</span></div><div className="source-time"><span className="source-label">{busy?'Проверка обновлений…':checked ? 'Проверено '+checked : 'Обновление раз в минуту'}</span><span>{source ? 'Проверяем изменения каждую минуту' : 'Excel обрабатывается на устройстве'}</span></div>{source && <Button view="flat" className="icon-button" disabled={busy} onClick={()=>void refresh(source)} aria-label="Обновить" title="Обновить"><AppIcon name="refresh" size={18}/></Button>}</div>
+  <Modal open={confirmLogout} onOpenChange={setConfirmLogout} aria-labelledby="logout-title" initialFocus={cancelLogout} contentClassName="logout-dialog"><div className="dialog-symbol"><AppIcon name="logout" size={24}/></div><h2 id="logout-title">Sign out of the dashboard?</h2><p>Your current session data will be cleared. Sign in with Microsoft again to view the dashboard.</p><div className="dialog-actions"><Button ref={cancelLogout} size="l" onClick={()=>setConfirmLogout(false)}>Stay signed in</Button><Button size="l" view="action" onClick={()=>{setConfirmLogout(false);void logout();}}>Sign out</Button></div></Modal>
+  <section className={`cloud-source ${!account ? 'welcome' : ''}`} aria-label="OneDrive connection">
+    {!account ? <><h2>Your dashboard from OneDrive</h2><p>Sign in with your work Microsoft 365 account and select an Excel workbook. Data is processed on this device.</p><Button size="l" view="action" disabled={!ready} onClick={()=>void login()}>Sign in with Microsoft</Button></> : <>
+      <div className="source-summary"><span className={`source-status ${busy?'checking':''}`} aria-hidden="true"/><div className="source-file"><span className="source-label">{source ? 'Excel from OneDrive' : 'Data source'}</span><b title={source?.name}>{source ? source.name : 'Select a workbook using the top-right menu'}</b></div><div className="source-account"><span className="source-label">Microsoft 365</span><span title={account}>{account}</span></div><div className="source-time"><span className="source-label">{busy?'Checking for updates…':checked ? 'Checked at '+checked : 'Checks every minute'}</span><span>{source ? 'Checks for changes every minute' : 'Excel is processed on this device'}</span></div>{source && <Button view="flat" className="icon-button" disabled={busy} onClick={()=>void refresh(source)} aria-label="Refresh" title="Refresh"><AppIcon name="refresh" size={18}/></Button>}</div>
       {picker && <div className="file-picker">
-        <div className="picker-heading"><h2>{mode==='own'?'Мой OneDrive':'Общие файлы'}</h2><Button view="flat" className="icon-button" disabled={busy} onClick={()=>setPicker(false)} aria-label="Закрыть выбор файла"><AppIcon name="close" size={18}/></Button></div>
-        {mode==='own' && <div className="catalog-breadcrumbs"><button disabled={busy} onClick={()=>void browse([])}>Мой OneDrive</button>{trail.map((item,i)=><React.Fragment key={itemKey(item)}><span aria-hidden="true">/</span><button disabled={busy} onClick={()=>void browse(trail.slice(0,i+1))}>{item.name}</button></React.Fragment>)}{trail.length>0 && <Button disabled={busy} onClick={()=>void browse(trail.slice(0,-1))}>Назад</Button>}</div>}
-        {mode==='shared' && <form className="shared-search" onSubmit={e=>{e.preventDefault();void search();}}><TextInput size="l" placeholder="Название или часть названия Excel" controlProps={{'aria-label':'Название общего Excel'}} value={query} onUpdate={setQuery}/><Button type="submit" disabled={busy}>Найти</Button></form>}
-        {busy && <p role="status">Загрузка…</p>}
-        {mode==='shared' && items.length>0 ? <SharedCatalog items={items} busy={busy} resetKey={catalogVersion} onSelect={item=>void refresh(item)}/> : mode==='own' && items.length>0 ? <ul className="catalog-list">{items.map(item=><li key={itemKey(item)}><button disabled={busy} onClick={()=>void (item.folder ? browse([...trail,item]) : refresh(item))}><span className={`catalog-icon ${item.folder?'':'file'}`}><AppIcon name={item.folder?'folder':'file'}/></span><span className="catalog-name">{item.name}</span>{item.folder && <AppIcon name="chevronRight" size={16}/>}</button></li>)}</ul> : !busy && <p>{mode==='own' ? 'В этой папке нет папок или файлов .xlsx. Книги коллег доступны через «Общие файлы» в меню.' : 'Книги не найдены. Уточните название или очистите поиск. Новая общая книга может появиться с задержкой.'}</p>}
-        {mode==='shared' && more && <Button disabled={busy} onClick={()=>void search(offset)}>Показать ещё</Button>}
+        <div className="picker-heading"><h2>{mode==='own'?'My OneDrive':'Shared files'}</h2><Button view="flat" className="icon-button" disabled={busy} onClick={()=>setPicker(false)} aria-label="Close file picker"><AppIcon name="close" size={18}/></Button></div>
+        {mode==='own' && <div className="catalog-breadcrumbs"><button disabled={busy} onClick={()=>void browse([])}>My OneDrive</button>{trail.map((item,i)=><React.Fragment key={itemKey(item)}><span aria-hidden="true">/</span><button disabled={busy} onClick={()=>void browse(trail.slice(0,i+1))}>{item.name}</button></React.Fragment>)}{trail.length>0 && <Button disabled={busy} onClick={()=>void browse(trail.slice(0,-1))}>Back</Button>}</div>}
+        {mode==='shared' && <form className="shared-search" onSubmit={e=>{e.preventDefault();void search();}}><TextInput size="l" placeholder="Workbook name or part of a name" controlProps={{'aria-label':'Shared workbook name'}} value={query} onUpdate={setQuery}/><Button type="submit" disabled={busy}>Search</Button></form>}
+        {busy && <p role="status">Loading…</p>}
+        {mode==='shared' && items.length>0 ? <SharedCatalog items={items} busy={busy} resetKey={catalogVersion} onSelect={item=>void refresh(item)}/> : mode==='own' && items.length>0 ? <ul className="catalog-list">{items.map(item=><li key={itemKey(item)}><button disabled={busy} onClick={()=>void (item.folder ? browse([...trail,item]) : refresh(item))}><span className={`catalog-icon ${item.folder?'':'file'}`}><AppIcon name={item.folder?'folder':'file'}/></span><span className="catalog-name">{item.name}</span>{item.folder && <AppIcon name="chevronRight" size={16}/>}</button></li>)}</ul> : !busy && <p>{mode==='own' ? 'No folders or .xlsx files here. Use Shared files in the menu to find colleagues\' workbooks.' : 'No workbooks found. Refine or clear your search. Recently shared workbooks may take time to appear.'}</p>}
+        {mode==='shared' && more && <Button disabled={busy} onClick={()=>void search(offset)}>Show more</Button>}
       </div>}
     </>}
-    {error && <div className="cloud-error" role="alert"><p>{error} {cache.current && 'Показаны данные последнего успешного чтения.'}</p>{account && needsSignIn ? <Button disabled={busy} onClick={()=>void login()}>Войти снова</Button> : retryItem && <Button disabled={busy} onClick={()=>void refresh(retryItem)}>Повторить загрузку</Button>}</div>}
-    {source && !cache.current && !busy && !picker && <Button onClick={()=>void browse([])}>Выбрать другую книгу</Button>}
+    {error && <div className="cloud-error" role="alert"><p>{error} {cache.current && 'Showing data from the last successful load.'}</p>{account && needsSignIn ? <Button disabled={busy} onClick={()=>void login()}>Sign in again</Button> : retryItem && <Button disabled={busy} onClick={()=>void refresh(retryItem)}>Retry download</Button>}</div>}
+    {source && !cache.current && !busy && !picker && <Button onClick={()=>void browse([])}>Select another workbook</Button>}
   </section></>;
 }

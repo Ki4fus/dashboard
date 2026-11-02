@@ -1,0 +1,37 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs/promises');
+const ts = require('typescript');
+const ExcelJS = require('exceljs');
+const {readDashboard: desktopReader} = require('../electron/excel.cjs');
+async function loadTs(file) {
+ const source=await fs.readFile(file,'utf8');
+ const code=ts.transpileModule(source,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS,esModuleInterop:true}}).outputText;
+ const exports={};new Function('require','exports',code)(require,exports);return exports;
+}
+(async()=>{
+ const {dailyPnl}=await loadTs('src/dailyPnl.ts');
+ const {readDashboard:webReader}=await loadTs('src/excel.ts');
+ const workbook=new ExcelJS.Workbook();const sheet=workbook.addWorksheet('RUB Deals Rates');
+ sheet.getCell('A1').value='DATE FIXED';
+ sheet.getCell('A2').value=new Date('2026-11-01T00:00:00Z');sheet.getCell('A3').value='TOTAL';sheet.getCell('Y3').value=999;sheet.getCell('T3').value=888;
+ sheet.getCell('A4').value=new Date('2026-11-02T00:00:00Z');sheet.getCell('A5').value='TOTAL';sheet.getCell('Y5').value={formula:'SUM(Y4:Y4)',result:120.25};sheet.getCell('T5').value={formula:'SUM(T4:T4)',result:30.5};
+ const dir=await fs.mkdtemp('/private/tmp/netting-pnl-');const file=dir+'/fixture.xlsx';await workbook.xlsx.writeFile(file);
+ const desktop=await desktopReader(file);const bytes=await fs.readFile(file);const web=await webReader(bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength),'fixture.xlsx');
+ assert.deepEqual(desktop.points,web.points,'Desktop and web readers agree');
+ assert.deepEqual(dailyPnl(desktop.points,'2026-11-02'),{our:120.25,fx:30.5,combined:150.75});
+ assert.deepEqual(dailyPnl(desktop.points,'2026-11-03'),{our:null,fx:null,combined:0});
+ sheet.getCell('T5').value={formula:'SUM(T4:T4)',result:0};await workbook.xlsx.writeFile(file);
+ assert.deepEqual(dailyPnl((await desktopReader(file)).points,'2026-11-02'),{our:120.25,fx:0,combined:120.25});
+ sheet.getCell('T5').value={formula:'1/0',result:{error:'#DIV/0!'}};await workbook.xlsx.writeFile(file);
+ const invalid=await desktopReader(file);assert.equal(invalid.points[1].fxIssue,'Excel error: #DIV/0!');assert.deepEqual(dailyPnl(invalid.points,'2026-11-02'),{our:120.25,fx:null,combined:120.25});
+ sheet.getCell('T5').value=null;await workbook.xlsx.writeFile(file);assert.equal(dailyPnl((await desktopReader(file)).points,'2026-11-02').combined,120.25);
+ sheet.getCell('T5').value='—';await workbook.xlsx.writeFile(file);assert.deepEqual(dailyPnl((await desktopReader(file)).points,'2026-11-02'),{our:120.25,fx:null,combined:120.25});
+ sheet.getCell('Y5').value=null;sheet.getCell('T5').value=30.5;await workbook.xlsx.writeFile(file);assert.deepEqual(dailyPnl((await desktopReader(file)).points,'2026-11-02'),{our:null,fx:30.5,combined:30.5});
+ sheet.getCell('T5').value=null;await workbook.xlsx.writeFile(file);assert.deepEqual(dailyPnl((await desktopReader(file)).points,'2026-11-02'),{our:null,fx:null,combined:0});
+ sheet.getCell('Y5').value=120.25;
+ sheet.getCell('A6').value=new Date('2026-11-02T00:00:00Z');sheet.getCell('A7').value='TOTAL';sheet.getCell('Y7').value=10;sheet.getCell('T7').value=5;sheet.getCell('T5').value=0;await workbook.xlsx.writeFile(file);
+ assert.deepEqual(dailyPnl((await desktopReader(file)).points,'2026-11-02'),{our:130.25,fx:5,combined:135.25});
+ sheet.getCell('A8').value=new Date('2026-11-02T00:00:00Z');sheet.getCell('A9').value=new Date('2026-11-03T00:00:00Z');sheet.getCell('A10').value='TOTAL';sheet.getCell('Y10').value=800;sheet.getCell('T10').value=900;await workbook.xlsx.writeFile(file);assert.deepEqual(dailyPnl((await desktopReader(file)).points,'2026-11-02'),{our:130.25,fx:5,combined:135.25},'Ambiguous dates cannot contribute to today');
+ await fs.rm(dir,{recursive:true,force:true});
+ console.log('Daily P&L checks passed: T parsing in desktop/web, date isolation, Y+T, formula zero, missing values, errors and multiple daily totals.');
+})().catch(error=>{console.error(error);process.exitCode=1;});

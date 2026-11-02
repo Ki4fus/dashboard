@@ -11,7 +11,7 @@ export function analytics(operations: Operation[], today: string, from: string, 
   const change = current.value !== null && previous.value !== null && previous.value !== 0 ? (current.value-previous.value)/Math.abs(previous.value)*100 : null;
   const currencies = new Map<string, number>();
   for (const p of inPeriod.filter(p=>p.fixedUsdAmount !== null)) {
-    const name = p.currency || 'Не указана';
+    const name = p.currency || 'Unspecified';
     currencies.set(name, (currencies.get(name) ?? 0)+p.fixedUsdAmount!);
   }
   return {current, period: average(inPeriod), previousDate, change, currencyIssue: [...currencies.values()].some(v=>v<0), currencies: [...currencies].map(([name,value])=>({name,value})).filter(p=>p.value!==0).sort((a,b)=>b.value-a.value)};

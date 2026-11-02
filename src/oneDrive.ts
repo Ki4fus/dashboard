@@ -30,19 +30,19 @@ export class OneDriveError extends Error {
 export async function graph<T>(path: string, body?: unknown): Promise<T> {
   await initialized;
   const account = auth.getActiveAccount();
-  if (!account) throw new OneDriveError('Войдите через Microsoft.',true);
+  if (!account) throw new OneDriveError('Sign in with Microsoft.',true);
   let token;
   try {token = await auth.acquireTokenSilent({scopes, account});}
-  catch (e) {if (e instanceof InteractionRequiredAuthError) throw new OneDriveError('Требуется подтверждение входа Microsoft. Нажмите «Войти снова».',true); throw e;}
+  catch (e) {if (e instanceof InteractionRequiredAuthError) throw new OneDriveError('Microsoft sign-in needs confirmation. Select Sign in again.',true); throw e;}
   const url = new URL(path.startsWith('https:') ? path : `https://graph.microsoft.com/v1.0${path}`);
-  if (url.origin !== 'https://graph.microsoft.com' || !url.pathname.startsWith('/v1.0/')) throw new Error('Недопустимый адрес Microsoft Graph.');
+  if (url.origin !== 'https://graph.microsoft.com' || !url.pathname.startsWith('/v1.0/')) throw new Error('Invalid Microsoft Graph URL.');
   const response = await fetch(url, {method: body ? 'POST' : 'GET',headers:{Authorization:`Bearer ${token.accessToken}`,...(body ? {'Content-Type':'application/json'} : {Prefer:'odata.include-annotations="*"'})},...(body ? {body:JSON.stringify(body)} : {}),cache:'no-store'});
   if (!response.ok) {
-    if (response.status === 401) throw new OneDriveError('Требуется подтверждение входа Microsoft. Нажмите «Войти снова».',true);
-    if (response.status === 403) throw new Error('Microsoft запретил чтение. Проверьте делегированное Files.Read.All и согласие вашей организации.');
-    if (response.status === 404) throw new Error('Файл или папка недоступны. Проверьте доступ к книге или выберите её заново.');
-    if (response.status === 429) throw new Error('Microsoft временно ограничил запросы. Попробуйте обновить позже.');
-    throw new Error(`Не удалось прочитать OneDrive (${response.status}).`);
+    if (response.status === 401) throw new OneDriveError('Microsoft sign-in needs confirmation. Select Sign in again.',true);
+    if (response.status === 403) throw new Error('Microsoft denied read access. Check the delegated Files.Read.All permission and your organization\'s consent.');
+    if (response.status === 404) throw new Error('The file or folder is unavailable. Check workbook access or select it again.');
+    if (response.status === 429) throw new Error('Microsoft temporarily limited requests. Try refreshing later.');
+    throw new Error(`Could not read OneDrive (${response.status}).`);
   }
   return response.json();
 }
@@ -71,9 +71,9 @@ export async function loadItem(item: Item, cached?: {tag: string; data: Data}): 
   const download = meta['@microsoft.graph.downloadUrl'];
   let validDownload = false;
   try {validDownload = typeof download === 'string' && new URL(download).protocol === 'https:';} catch {/* Invalid URLs must never be requested. */}
-  if (!validDownload || !download) throw new OneDriveError('Microsoft вернул сведения о книге, но не предоставил адрес её скачивания. Повторите загрузку. Если ошибка сохраняется, проверьте, разрешено ли скачивание этой книги в OneDrive и политиками организации.');
+  if (!validDownload || !download) throw new OneDriveError('Microsoft returned workbook details without a download URL. Retry the download. If this persists, check whether downloading is allowed by OneDrive and your organization\'s policies.');
   const response = await fetch(download, {cache:'no-store',credentials:'omit',referrerPolicy:'no-referrer'});
-  if (!response.ok) throw new Error('Не удалось загрузить Excel. Повторите обновление.');
+  if (!response.ok) throw new Error('Could not download the workbook. Try refreshing again.');
   const data = await readDashboard(await response.arrayBuffer(), meta.name);
   return {tag,data,changed:true};
 }
