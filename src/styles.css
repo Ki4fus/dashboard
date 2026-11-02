@@ -55,10 +55,8 @@ main.auth-main{display:grid;place-items:center;width:100%;max-width:none;min-hei
 .metric-group .dashboard-card{box-shadow:0 2px 8px rgba(20,45,80,.025);padding:24px;border-radius:14px}
 .metric-group .dashboard-card.metric strong{font-size:clamp(26px,2.5vw,38px);margin-top:20px;letter-spacing:-1.2px}
 .metric-group .card-content>small{display:block;line-height:1.6}
-.metric-group--today-pnl{--metric-accent:#3266d5;--metric-ink:#2453be}
-.metric-group--today-fixed{--metric-accent:#0f8991;--metric-ink:#087a82}
-.g-root_theme_dark .metric-group--today-pnl{--metric-accent:#769de7;--metric-ink:#9abcfb}
-.g-root_theme_dark .metric-group--today-fixed{--metric-accent:#45b6bb;--metric-ink:#7fd5d7}
+.metric-group--today-pnl,.metric-group--today-fixed{--metric-accent:#0f8991;--metric-ink:#087a82}
+.g-root_theme_dark .metric-group--today-pnl,.g-root_theme_dark .metric-group--today-fixed{--metric-accent:#45b6bb;--metric-ink:#7fd5d7}
 .metric-group--today-pnl,.metric-group--today-fixed{border-color:color-mix(in srgb,var(--metric-accent) 28%,var(--g-color-line-generic));background:color-mix(in srgb,var(--metric-accent) 3%,var(--g-color-base-background))}
 .metric-group--today-pnl .group-grid--3{grid-template-columns:1.18fr 1fr 1fr}
 .metric-group .dashboard-card.primary-metric{border-color:color-mix(in srgb,var(--metric-accent) 44%,var(--g-color-line-generic));background:color-mix(in srgb,var(--metric-accent) 7%,var(--g-color-base-background));box-shadow:inset 3px 0 0 var(--metric-accent)}
