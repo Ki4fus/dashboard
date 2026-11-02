@@ -55,11 +55,15 @@ main.auth-main{display:grid;place-items:center;width:100%;max-width:none;min-hei
 .metric-group .dashboard-card{box-shadow:0 2px 8px rgba(20,45,80,.025);padding:24px;border-radius:14px}
 .metric-group .dashboard-card.metric strong{font-size:clamp(26px,2.5vw,38px);margin-top:20px;letter-spacing:-1.2px}
 .metric-group .card-content>small{display:block;line-height:1.6}
-.metric-group--today-pnl{border-color:color-mix(in srgb,#3585f5 28%,var(--g-color-line-generic));background:color-mix(in srgb,#3585f5 4%,var(--g-color-base-background))}
+.metric-group--today-pnl{--metric-accent:#3266d5;--metric-ink:#2453be}
+.metric-group--today-fixed{--metric-accent:#0f8991;--metric-ink:#087a82}
+.g-root_theme_dark .metric-group--today-pnl{--metric-accent:#769de7;--metric-ink:#9abcfb}
+.g-root_theme_dark .metric-group--today-fixed{--metric-accent:#45b6bb;--metric-ink:#7fd5d7}
+.metric-group--today-pnl,.metric-group--today-fixed{border-color:color-mix(in srgb,var(--metric-accent) 28%,var(--g-color-line-generic));background:color-mix(in srgb,var(--metric-accent) 3%,var(--g-color-base-background))}
 .metric-group--today-pnl .group-grid--3{grid-template-columns:1.18fr 1fr 1fr}
-.metric-group .dashboard-card.primary-metric{border-color:color-mix(in srgb,#3585f5 42%,var(--g-color-line-generic));background:color-mix(in srgb,#3585f5 8%,var(--g-color-base-background));box-shadow:inset 3px 0 0 #3585f5}
+.metric-group .dashboard-card.primary-metric{border-color:color-mix(in srgb,var(--metric-accent) 44%,var(--g-color-line-generic));background:color-mix(in srgb,var(--metric-accent) 7%,var(--g-color-base-background));box-shadow:inset 3px 0 0 var(--metric-accent)}
 .metric-group .primary-metric .card-heading>span{color:var(--g-color-text-primary);font-weight:600}
-.metric-group .dashboard-card.metric.primary-metric strong{font-size:clamp(30px,3vw,44px)}
+.metric-group .dashboard-card.metric.primary-metric strong{font-size:clamp(30px,3vw,44px);color:var(--metric-ink)}
 .metric-group--today-fixed .dashboard-card{padding-right:68px}
 .metric-group--today-fixed .card-content{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,auto);column-gap:28px;align-items:center}
 .metric-group--today-fixed .card-heading{grid-column:1;grid-row:1}.metric-group--today-fixed .card-content>small{grid-column:1;grid-row:2}

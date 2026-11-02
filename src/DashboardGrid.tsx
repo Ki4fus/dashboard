@@ -20,7 +20,7 @@ export function normalizeOrder(saved: unknown, ids: string[]) {
 }
 function SortableCard({card, loading,onRename}: {card: DashboardCard; loading: boolean;onRename:()=>void}) {
   const {attributes,listeners,setNodeRef,transform,transition,isDragging} = useSortable({id:card.id, disabled:loading, animateLayoutChanges: args=>defaultAnimateLayoutChanges({...args, wasDragging:true})});
-  return <article ref={setNodeRef} data-card-id={card.id} aria-busy={loading} className={`dashboard-card ${card.kind} ${card.id==='total-combined-today'?'primary-metric':''} ${isDragging ? 'is-dragging' : ''} ${loading ? 'is-loading' : ''}`} style={{transform:CSS.Transform.toString(transform),transition}}>
+  return <article ref={setNodeRef} data-card-id={card.id} aria-busy={loading} className={`dashboard-card ${card.kind} ${['total-combined-today','fixed-today'].includes(card.id)?'primary-metric':''} ${isDragging ? 'is-dragging' : ''} ${loading ? 'is-loading' : ''}`} style={{transform:CSS.Transform.toString(transform),transition}}>
     <button disabled={loading} className="drag-handle" {...attributes} {...listeners} aria-label={`Move: ${card.title}`} title="Drag this card. Keyboard: Space, arrow keys, Space."><AppIcon name="grip" size={22}/></button>
     <div className="card-content" aria-hidden={loading || undefined}><CardContent card={card} onRename={loading?undefined:onRename}/></div>
     {loading && <div className={`card-skeleton ${card.kind}`} aria-hidden="true"><span className="skeleton-bar skeleton-title"/>{card.kind === 'metric' ? <><span className="skeleton-bar skeleton-value"/><span className="skeleton-bar skeleton-caption"/></> : <><span className="skeleton-bar skeleton-caption"/><div className="skeleton-panel"/></>}</div>}
