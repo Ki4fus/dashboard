@@ -8,6 +8,7 @@ const {readDashboard} = require('../electron/excel.cjs');
  const day=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Dubai',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
  sheet.getCell('A1').value=new Date(day+'T00:00:00Z');sheet.getCell('E1').value=80;sheet.getCell('L1').value='USD';sheet.getCell('U1').value=200;
  sheet.getCell('A2').value='TOTAL';sheet.getCell('Y2').value={formula:'100+23',result:123};sheet.getCell('T2').value=50;sheet.getCell('U2').value={formula:'100+100',result:200};
+ sheet.getCell('A3').value='TOTAL'; // An ambiguous block exercises removal of the old warning summary.
  const bytes=Buffer.from(await book.xlsx.writeBuffer());
  const fixture='/private/tmp/netting-web-fixture.xlsx';await fs.writeFile(fixture,bytes);
  const expected=await readDashboard(fixture);
@@ -36,6 +37,7 @@ const {readDashboard} = require('../electron/excel.cjs');
  });
  await page.route('https://download.example.com/**',async route=>{downloads++;assert.equal(route.request().headers().authorization,undefined);await route.fulfill({body:invalid?Buffer.from('invalid excel'):bytes});});
  const menuAction=async name=>{await page.getByRole('button',{name:'Open menu',exact:true}).click();await page.getByRole('menuitem',{name,exact:true}).click();};
+ await page.addInitScript(()=>localStorage.setItem('netting.dashboard.card-order.v1',JSON.stringify(['rate-change','fixed-today','total-period','total-latest'])));
  await page.goto('http://localhost:5173/');
  await page.getByRole('button',{name:'Sign in with Microsoft',exact:true}).waitFor();
  for(const width of [390,768,1440]) {
@@ -51,7 +53,11 @@ const {readDashboard} = require('../electron/excel.cjs');
  await page.getByRole('button',{name:/Reports/}).click();await page.getByRole('button',{name:/Report.xlsx/}).click();
  await page.getByRole('heading',{name:'Daily data',exact:true}).waitFor();
  assert.equal(pages,2);assert.equal(downloads,1);assert.equal(await page.locator('aside,#dashboard-sidebar').count(),0,'No sidebar after sign-in');assert.equal(await page.locator('body').evaluate(e=>/[А-Яа-яЁё]/.test(e.innerText)),false,'Dashboard labels are in English');
- assert.ok((await page.locator('.dashboard-card.metric').first().textContent()).includes('123.00'));
+ assert.ok((await page.locator('.dashboard-card.metric').first().textContent()).includes('173.00'));
+ const expectedGroups=[['total-combined-today','total-latest','total-fx-today'],['fixed-today'],['total-period','fixed-period'],['total-average','total-change'],['rate-today','rate-period','rate-change']];
+ const groupCards=()=>page.locator('.metric-group').evaluateAll(groups=>groups.map(group=>[...group.querySelectorAll('.dashboard-card')].map(card=>card.dataset.cardId)));
+ assert.deepEqual(await groupCards(),expectedGroups,'Five metric blocks follow the requested hierarchy');
+ assert.equal(await page.locator('.notice').count(),0,'No filename/Loaded-at/error-count summary, including with invalid totals');
  const calendar=page.getByRole('button',{name:'Choose date: From',exact:true});
  await calendar.click();await page.getByRole('dialog',{name:'Calendar: From'}).waitFor();await calendar.click();await page.getByRole('dialog',{name:'Calendar: From'}).waitFor({state:'hidden'});
  await calendar.click();await page.getByRole('heading',{name:'Netting Dashboard',exact:true}).click();await page.getByRole('dialog',{name:'Calendar: From'}).waitFor({state:'hidden'});
@@ -65,7 +71,7 @@ const {readDashboard} = require('../electron/excel.cjs');
  assert.deepEqual({sheet:parsed.sheet,points:parsed.points,operations:parsed.operations},expected,'Browser parser matches desktop including cached formulas');
  await page.getByRole('button',{name:'Refresh',exact:true}).click();await page.waitForFunction(()=>!document.querySelector('[aria-busy="true"]'));assert.equal(downloads,1,'Unchanged version is not downloaded again');
  tag='version-2';await page.getByRole('button',{name:'Refresh',exact:true}).click();await page.waitForFunction(()=>!document.querySelector('[aria-busy="true"]'));assert.equal(downloads,2);
- forbidden=true;await page.getByRole('button',{name:'Refresh',exact:true}).click();await page.getByRole('alert').waitFor();assert.ok((await page.getByRole('alert').textContent()).includes('Showing data from the last successful'));assert.equal(await page.locator('.dashboard-card').count(),15);forbidden=false;
+ forbidden=true;await page.getByRole('button',{name:'Refresh',exact:true}).click();await page.getByRole('alert').waitFor();assert.ok((await page.getByRole('alert').textContent()).includes('Showing data from the last successful'));assert.equal(await page.locator('.dashboard-card').count(),15);forbidden=false;await page.getByRole('button',{name:'Refresh',exact:true}).click();await page.waitForFunction(()=>!document.querySelector('[aria-busy="true"]'));
  for(const width of [390,768,1440]){
  await page.setViewportSize({width,height:900});await page.waitForFunction(()=>document.documentElement.scrollWidth<=innerWidth,{},{timeout:5000}).catch(async error=>{console.log(await page.evaluate(()=>[...document.querySelectorAll('body *')].filter(e=>e.getBoundingClientRect().right>innerWidth+1).map(e=>({tag:e.tagName,cls:e.className,right:e.getBoundingClientRect().right})).slice(0,25)));await page.screenshot({path:'/private/tmp/netting-ui-overflow.png',fullPage:true});throw error;});
  const overflow=await page.evaluate(()=>[...document.querySelectorAll('body *')].filter(e=>e.getBoundingClientRect().right>innerWidth+1 && getComputedStyle(e).position!=='absolute').map(e=>[e.tagName,e.className,e.getBoundingClientRect().right]).slice(0,20)); if(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth))console.log('Overflow',overflow);
@@ -82,7 +88,7 @@ const {readDashboard} = require('../electron/excel.cjs');
   if(!await button.isVisible())continue;
   assert.ok(await button.evaluate(e=>{const text=e.querySelector('.g-button__text');if(!text)return true;const a=e.getBoundingClientRect(),b=text.getBoundingClientRect();return Math.abs(a.x+a.width/2-b.x-b.width/2)<1&&Math.abs(a.y+a.height/2-b.y-b.height/2)<1;}),'Button text wrapper centered');
  }
- const columns=await page.locator('.dashboard-grid').evaluate(e=>getComputedStyle(e).gridTemplateColumns.split(' ').length);assert.equal(columns,width===390?1:width===768?2:3);
+ const columns=await page.locator('[data-group-id="rates"] .group-grid').evaluate(e=>getComputedStyle(e).gridTemplateColumns.split(' ').length);assert.equal(columns,width===390?1:width===768?2:3);assert.deepEqual(await groupCards(),expectedGroups);
  if(width===390){await page.getByRole('button',{name:/^Rename:/}).first().tap();await page.getByRole('dialog',{name:'Card name',exact:true}).waitFor();await page.getByRole('button',{name:'Cancel',exact:true}).tap();await page.getByRole('dialog',{name:'Card name',exact:true}).waitFor({state:'hidden'});await calendar.tap();await page.getByRole('dialog',{name:'Calendar: From'}).waitFor();await calendar.tap();await page.getByRole('dialog',{name:'Calendar: From'}).waitFor({state:'hidden'});await calendar.tap();await page.getByRole('heading',{name:'Netting Dashboard',exact:true}).tap();await page.getByRole('dialog',{name:'Calendar: From'}).waitFor({state:'hidden'});await menuAction('Our P&L');assert.equal(await page.locator('.dashboard-card').count(),9);await menuAction('Overview');}
  await page.screenshot({path:`/private/tmp/netting-web-${width}.png`,fullPage:true});
  }
@@ -110,12 +116,18 @@ const {readDashboard} = require('../electron/excel.cjs');
  await page.getByRole('button',{name:/RUB RATES LOG.xlsx/}).click();await page.waitForFunction(()=>!document.querySelector('[aria-busy="true"]'));assert.equal(sharedReads,2,'Missing selected annotation triggers full metadata retry');assert.equal(downloads,4,'Same item id in another drive must not reuse own-drive cache');
  const sharedSaved=await page.evaluate(()=>JSON.parse(localStorage.getItem('netting-source:test-user')));assert.deepEqual(sharedSaved,{id:'book',name:'RUB RATES LOG.xlsx',driveId:'colleague-drive'});
  await page.reload();await page.getByRole('heading',{name:'Daily data',exact:true}).waitFor();assert.equal(downloads,5);assert.equal(sharedReads,4,'Restored shared source retries full metadata in colleague drive');
+ const rateGroup=page.locator('[data-group-id="rates"]');
+ const beforeRates=await rateGroup.locator('.dashboard-card').evaluateAll(nodes=>nodes.map(e=>e.dataset.cardId));
+ const beforeGroups=await groupCards();
+ await rateGroup.locator('.drag-handle').first().focus();await page.keyboard.press('Space');await page.keyboard.press('ArrowRight');await page.keyboard.press('Space');
+ const movedRates=await rateGroup.locator('.dashboard-card').evaluateAll(nodes=>nodes.map(e=>e.dataset.cardId));assert.notDeepEqual(movedRates,beforeRates,'Cards can reorder inside a block');assert.deepEqual((await groupCards()).slice(0,4),beforeGroups.slice(0,4),'Other blocks keep their order');
+ await page.reload();await page.getByRole('heading',{name:'Daily data',exact:true}).waitFor();assert.deepEqual(await rateGroup.locator('.dashboard-card').evaluateAll(nodes=>nodes.map(e=>e.dataset.cardId)),movedRates,'Block layout survives reload');
  invalid=true;tag='version-3';await page.getByRole('button',{name:'Refresh',exact:true}).click();await page.getByRole('alert').waitFor();assert.equal(await page.locator('.dashboard-card').count(),15);
  missingDownload=true;invalid=false;tag='version-4';await page.getByRole('button',{name:'Refresh',exact:true}).click();await page.getByText(/without a download URL/).waitFor();assert.equal(await page.getByRole('button',{name:'Sign in again',exact:true}).count(),0,'Missing download URL is not an authentication failure');
  missingDownload=false;remoteFull=true;await page.getByRole('button',{name:'Retry download',exact:true}).click();await page.waitForFunction(()=>!document.querySelector('[aria-busy="true"]'));assert.equal(await page.getByRole('alert').count(),0,'Retry resolves remoteItem against origin drive');
  await menuAction('Sign out');await page.getByRole('dialog',{name:'Sign out of the dashboard?'}).waitFor();await page.getByRole('button',{name:'Stay signed in',exact:true}).click();assert.equal(await page.locator('.dashboard-card').count(),15,'Cancel logout preserves data');
  await menuAction('Sign out');await page.getByRole('dialog',{name:'Sign out of the dashboard?'}).waitFor();await page.keyboard.press('Escape');await page.getByRole('dialog',{name:'Sign out of the dashboard?'}).waitFor({state:'hidden'});assert.equal(await page.locator('.dashboard-card').count(),15);
  await menuAction('Sign out');await page.getByRole('button',{name:'Sign out',exact:true}).click();await page.getByRole('button',{name:'Sign in with Microsoft',exact:true}).waitFor();assert.equal(await page.locator('.dashboard-card').count(),0);
- assert.deepEqual(errors,[]);console.log('Web checks passed: card rename/validation/cancellation/reset/persistence across sections and reload, centered sign-in-only screen, aligned header and all icon/text buttons, mouse/touch calendar dismissal, menu, logout confirmation and cancellation, folder catalog, local font, centered grip, 390/768/1440 layouts, Excel parsing, loading and refresh. Microsoft authentication is mocked.');
+ assert.deepEqual(errors,[]);console.log('Web checks passed: five ordered metric blocks, within-block keyboard reorder and persistence, removed summary banner, card rename/validation/cancellation/reset/persistence across sections and reload, centered sign-in-only screen, aligned header and all icon/text buttons, mouse/touch calendar dismissal, menu, logout confirmation and cancellation, folder catalog, local font, centered grip, 390/768/1440 layouts, Excel parsing, loading and refresh. Microsoft authentication is mocked.');
  } finally {await browser.close();await fs.unlink(fixture);}
 })().catch(e=>{console.error(e);process.exitCode=1;});

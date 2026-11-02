@@ -82,7 +82,7 @@ function App() {
     {!desktop && <React.Suspense fallback={<p role="status">Preparing sign-in…</p>}><OneDriveSource onData={setData} onBusy={setBusy} onSessionChange={setSignedIn} toolsElement={toolsElement} navigation={sections} section={section} onSection={id=>setSection(id as Section)}/></React.Suspense>}
     {error && <div role="alert" className="notice">{error} {data && 'Showing data from the last successful load.'}</div>}
     {(desktop || data) && <>
-    {(desktop || issues.length>0) && <div className="notice">{data ? `${data.name} · Loaded at ${new Date(data.updated).toLocaleTimeString('en-GB')} · ${issues.length} TOTAL rows with missing values or errors` : 'Select an Excel workbook. Dates come from transaction blocks; totals come from column Y of TOTAL rows.'}</div>}
+
     <div className="filters"><DateFilter key={`from-${filterReset}`} label="From" value={from} onChange={setFrom}/><DateFilter key={`to-${filterReset}`} label="To" value={to} onChange={setTo}/><Button onClick={()=>{setFrom('');setTo('');setFilterReset(value=>value+1);}}>All dates</Button></div>
     {from && to && from > to && <p role="alert">The start date is after the end date.</p>}
     <DashboardGrid key={section} cards={sectionCards} loading={busy} layoutId={section} titles={titles} onRename={rename}/>

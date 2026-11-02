@@ -25,7 +25,7 @@ const {readDashboard} = require('../electron/excel.cjs');
 
  assert.equal(await page.locator('.powered-by').textContent(),'Powered by LSD');
  const handles=page.locator('.dashboard-grid .drag-handle');
- const a=await handles.nth(0).boundingBox(), b=await page.locator(".dashboard-grid .dashboard-card").nth(4).boundingBox();
+ const a=await handles.nth(0).boundingBox(), b=await page.locator(".metric-group--today-pnl .dashboard-card").nth(1).boundingBox();
  await page.mouse.move(a.x+a.width/2,a.y+a.height/2);await page.mouse.down();await page.mouse.move(a.x+15,a.y+15,{steps:5});await page.mouse.move(b.x+b.width/2,b.y+b.height/2,{steps:20});
  await page.waitForTimeout(100);console.log('drag state',await page.locator('.is-dragging').count(),await titles());await page.screenshot({path:'/private/tmp/netting-drag.png'});assert.notDeepEqual(await titles(),initial,'Cards must move while pointer is down');await page.mouse.up();
  const changed=await titles();await page.reload();await page.getByRole('heading',{name:'Netting Dashboard',exact:true}).waitFor();assert.deepEqual(await titles(),changed,'Order survives reload');
