@@ -56,7 +56,7 @@ const {readDashboard} = require('../electron/excel.cjs');
  assert.ok((await page.locator('.dashboard-card.metric').first().textContent()).includes('173.00'));
  assert.equal(await page.locator('[data-card-id="total-fx-period"] strong').textContent(),'50.00');
  assert.equal(await page.locator('[data-card-id="total-combined-period"] strong').textContent(),'173.00');
- assert.equal(await page.locator('[data-card-id="total-period"] strong').textContent(),'123.00','Our P&L period retains column Y');
+ assert.equal(await page.locator('[data-card-id="total-period"] strong').textContent(),'123.00','P&L period retains column Y');
  const expectedGroups=[['total-combined-today','total-latest','total-fx-today'],['fixed-today'],['total-period','fixed-period','total-fx-period','total-combined-period'],['total-average','total-change'],['rate-today','rate-period','rate-change']];
  const groupCards=()=>page.locator('.metric-group').evaluateAll(groups=>groups.map(group=>[...group.querySelectorAll('.dashboard-card')].map(card=>card.dataset.cardId)));
  assert.deepEqual(await groupCards(),expectedGroups,'Five metric blocks follow the requested hierarchy');
@@ -93,18 +93,18 @@ const {readDashboard} = require('../electron/excel.cjs');
  }
  const columns=await page.locator('[data-group-id="rates"] .group-grid').evaluate(e=>getComputedStyle(e).gridTemplateColumns.split(' ').length);assert.equal(columns,width===390?1:width===768?2:3);assert.deepEqual(await groupCards(),expectedGroups);
  const periodColumns=await page.locator('[data-group-id="period"] .group-grid').evaluate(e=>getComputedStyle(e).gridTemplateColumns.split(' ').length);assert.equal(periodColumns,width===390?1:2);
- if(width===390){await page.getByRole('button',{name:/^Rename:/}).first().tap();await page.getByRole('dialog',{name:'Card name',exact:true}).waitFor();await page.getByRole('button',{name:'Cancel',exact:true}).tap();await page.getByRole('dialog',{name:'Card name',exact:true}).waitFor({state:'hidden'});await calendar.tap();await page.getByRole('dialog',{name:'Calendar: From'}).waitFor();await calendar.tap();await page.getByRole('dialog',{name:'Calendar: From'}).waitFor({state:'hidden'});await calendar.tap();await page.getByRole('heading',{name:'Netting Dashboard',exact:true}).tap();await page.getByRole('dialog',{name:'Calendar: From'}).waitFor({state:'hidden'});await menuAction('Our P&L');assert.equal(await page.locator('.dashboard-card').count(),11);await menuAction('Overview');}
+ if(width===390){await page.getByRole('button',{name:/^Rename:/}).first().tap();await page.getByRole('dialog',{name:'Card name',exact:true}).waitFor();await page.getByRole('button',{name:'Cancel',exact:true}).tap();await page.getByRole('dialog',{name:'Card name',exact:true}).waitFor({state:'hidden'});await calendar.tap();await page.getByRole('dialog',{name:'Calendar: From'}).waitFor();await calendar.tap();await page.getByRole('dialog',{name:'Calendar: From'}).waitFor({state:'hidden'});await calendar.tap();await page.getByRole('heading',{name:'Netting Dashboard',exact:true}).tap();await page.getByRole('dialog',{name:'Calendar: From'}).waitFor({state:'hidden'});await menuAction('P&L');assert.equal(await page.locator('.dashboard-card').count(),11);await menuAction('Overview');}
  await page.screenshot({path:`/private/tmp/netting-web-${width}.png`,fullPage:true});
  }
  assert.equal(await page.getByRole('button',{name:/^Rename:/}).count(),17,'Every card can be renamed');
- const metricTitle='Our P&L · Period (USD)',customMetric='Period profit';
- const chartTitle='Trend of our P&L · Today (USD)',customChart='Daily results';
+ const metricTitle='P&L · Period (USD)',customMetric='Period profit';
+ const chartTitle='Trend of P&L · Today (USD)',customChart='Daily results';
  await page.getByRole('button',{name:`Rename: ${metricTitle}`,exact:true}).click();
  const renameDialog=page.getByRole('dialog',{name:'Card name',exact:true});await renameDialog.waitFor();
  const nameInput=renameDialog.getByRole('textbox',{name:'Card name',exact:true});
  await nameInput.fill('   ');await renameDialog.getByRole('button',{name:'Save',exact:true}).click();await renameDialog.getByText('Enter a card name.',{exact:true}).waitFor();
  await nameInput.fill(customMetric);await nameInput.press('Enter');await renameDialog.waitFor({state:'hidden'});
- await menuAction('Our P&L');assert.equal(await page.getByRole('button',{name:`Rename: ${customMetric}`,exact:true}).count(),1,'Name is shared across sections');
+ await menuAction('P&L');assert.equal(await page.getByRole('button',{name:`Rename: ${customMetric}`,exact:true}).count(),1,'Name is shared across sections');
  await menuAction('Overview');
  await page.getByRole('button',{name:`Rename: ${chartTitle}`,exact:true}).click();await renameDialog.getByRole('textbox',{name:'Card name',exact:true}).fill(customChart);await renameDialog.getByRole('button',{name:'Save',exact:true}).click();await renameDialog.waitFor({state:'hidden'});
  assert.equal(await page.getByRole('heading',{name:customChart,exact:true}).count(),1,'Panel heading uses custom title');

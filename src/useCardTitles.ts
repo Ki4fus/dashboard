@@ -44,6 +44,13 @@ const renamedTitles:Record<string,Record<string,string>>={
     "\u041f\u0440\u043e\u0432\u0435\u0440\u044c\u0442\u0435 \u0434\u0430\u0442\u044b \u0432 Excel": "Check Excel dates"
   }
 };
+for (const aliases of Object.values(renamedTitles)) {
+ for (const [oldTitle, title] of Object.entries(aliases)) {
+  const updated = title.replace(/\bOur\s+/g, '').replace(/\bour\s+/g, '');
+  aliases[oldTitle] = updated;
+  if (updated !== title) aliases[title] = updated;
+ }
+}
 const STORAGE_KEY='netting.dashboard.card-titles.v1';
 export const MAX_CARD_TITLE_LENGTH=120;
 export function useCardTitles() {
