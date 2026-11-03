@@ -18,8 +18,8 @@ const {readDashboard} = require('../electron/excel.cjs');
  await page.getByRole('heading',{name:'Netting Dashboard',exact:true}).waitFor();
  const titles=()=>page.locator('.dashboard-grid .drag-handle').evaluateAll(nodes=>nodes.map(n=>n.getAttribute('aria-label')));
  await page.locator('.dashboard-card[aria-busy="false"]').first().waitFor();
- const initial=await titles();assert.equal(initial.length,15);
- assert.equal(await page.getByRole('button',{name:/How it is calculated:/}).count(),15);
+ const initial=await titles();assert.equal(initial.length,17);
+ assert.equal(await page.getByRole('button',{name:/How it is calculated:/}).count(),17);
  await page.getByRole('button',{name:'How it is calculated: Our P&L · Period (USD)',exact:true}).hover();await page.getByRole('tooltip').waitFor();assert.ok((await page.getByRole('tooltip').textContent()).includes('Y'));await page.mouse.move(1,1);await page.getByRole('tooltip').waitFor({state:'hidden'});
  const fromInput=page.getByRole('textbox',{name:'From',exact:true}),toInput=page.getByRole('textbox',{name:'To',exact:true});assert.equal(await toInput.inputValue(),'13/10/2026');await fromInput.fill('12/10/2026');await fromInput.blur();assert.equal(await page.locator('.table-scroll tbody tr').count(),2);await fromInput.fill('31/02/2026');await fromInput.blur();await page.getByText('Enter a valid date: dd/mm/yyyy',{exact:true}).waitFor();assert.equal(await page.locator('.table-scroll tbody tr').count(),2);await fromInput.fill('');await toInput.fill('13/10/2026');await toInput.blur();
 
@@ -34,7 +34,7 @@ const {readDashboard} = require('../electron/excel.cjs');
  for(const [value,css] of [[90,'change-negative'],[100,'change-neutral'],[110,'change-positive']]){
   const sample={...data,points:[{date:'2026-10-12',row:1,total:100,fixedUsdAmount:100,issue:null,fixedIssue:null},{date:'2026-10-13',row:2,total:value,fixedUsdAmount:value,issue:null,fixedIssue:null}],operations:[{date:'2026-10-12',row:1,currency:'USD',rate:100,fixedUsdAmount:100,hasAmount:true},{date:'2026-10-13',row:2,currency:'USD',rate:value,fixedUsdAmount:value,hasAmount:true}]};
   await app.evaluate(({ipcMain},sample)=>{ipcMain.removeHandler('excel:refresh');ipcMain.handle('excel:refresh',async()=>{await new Promise(r=>setTimeout(r,800));return sample;});},sample);
-  const before=await page.locator('.dashboard-card').first().boundingBox();await page.getByRole('button',{name:'Refresh',exact:true}).click();await page.locator('.card-skeleton').first().waitFor();assert.equal(await page.locator('.card-skeleton').count(),15);const during=await page.locator('.dashboard-card').first().boundingBox();assert.equal(before.height,during.height);
+  const before=await page.locator('.dashboard-card').first().boundingBox();await page.getByRole('button',{name:'Refresh',exact:true}).click();await page.locator('.card-skeleton').first().waitFor();assert.equal(await page.locator('.card-skeleton').count(),17);const during=await page.locator('.dashboard-card').first().boundingBox();assert.equal(before.height,during.height);
   await page.locator('.card-skeleton').first().waitFor({state:'detached'});assert.equal(await page.locator('strong.'+css).count(),2);
  }
  await app.evaluate(({ipcMain},data)=>{ipcMain.removeHandler('excel:refresh');ipcMain.handle('excel:refresh',()=>data);},data);await page.getByRole('button',{name:'Refresh',exact:true}).click();await page.locator('.card-skeleton').first().waitFor({state:'detached'});

@@ -51,7 +51,7 @@ main.auth-main{display:grid;place-items:center;width:100%;max-width:none;min-hei
 .metric-group-heading{display:flex;align-items:center;gap:10px;margin-bottom:18px}
 .metric-group-heading h2{margin:0;padding:0;font-size:17px;font-weight:600;letter-spacing:-.35px}
 .group-index{display:grid;place-items:center;width:28px;height:28px;border-radius:8px;background:var(--g-color-base-background);border:1px solid var(--g-color-line-generic);color:var(--g-color-text-secondary);font-size:10px;font-weight:600;letter-spacing:.3px;font-variant-numeric:tabular-nums}
-.group-grid{gap:16px}.group-grid--1{grid-template-columns:minmax(0,1fr)}.group-grid--2{grid-template-columns:repeat(2,minmax(0,1fr))}.group-grid--3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.group-grid{gap:16px}.group-grid--1{grid-template-columns:minmax(0,1fr)}.group-grid--4{grid-template-columns:repeat(2,minmax(0,1fr))}.group-grid--2{grid-template-columns:repeat(2,minmax(0,1fr))}.group-grid--3{grid-template-columns:repeat(3,minmax(0,1fr))}
 .metric-group .dashboard-card{box-shadow:0 2px 8px rgba(20,45,80,.025);padding:24px;border-radius:14px}
 .metric-group .dashboard-card.metric strong{font-size:clamp(26px,2.5vw,38px);margin-top:20px;letter-spacing:-1.2px}
 .metric-group .card-content>small{display:block;line-height:1.6}

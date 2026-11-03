@@ -9,7 +9,7 @@ import {useCardTitles} from './useCardTitles';
 import {AppIcon} from './Icons';
 import {DateFilter} from './DateFilter';
 import {DashboardGrid, type DashboardCard} from './DashboardGrid';
-import {dailyPnl} from './dailyPnl';
+import {dailyPnl,periodPnl} from './dailyPnl';
 import {analytics} from './analytics';
 import type {Data} from './data';
 configure({lang:'en'});
@@ -62,9 +62,12 @@ function App() {
   const fixedToday = (data?.points ?? []).filter(p => p.date === today && p.fixedUsdAmount !== null && !p.fixedIssue);
   const fixedTodaySum = fixedToday.length ? fixedToday.reduce((sum,p)=>sum+p.fixedUsdAmount!,0) : null;
   const pnlToday = dailyPnl(data?.points ?? [], today);
+  const pnlPeriod = periodPnl(data?.points ?? [],from,to);
   const stats = [number(valid.length ? sum : null), number(pnlToday.our), number(valid.length ? sum / valid.length : null), change === null ? '—' : number(change) + '%', number(fixedValid.length ? fixedSum : null), number(fixedTodaySum)];
   const cards: DashboardCard[] = [
     ...["Our P&L · Period (USD)","Our P&L · Today (USD)","Our P&L · Daily Average (USD)","Our P&L · Daily Change (%)","Fixed Amt · Period (USD)","Fixed Amt · Today (USD)"].map((label,i) => ({id:['total-period','total-latest','total-average','total-change','fixed-period','fixed-today'][i],title:label,kind:'metric' as const,content:<><div>{label}</div><strong className={i===3 ? changeColor(change) : undefined}>{stats[i]}</strong><small>{i===1 ? day(today) : i===5 ? day(today) : i===4 ? `Period · ${counted(fixedValid.length,'day')} · column U` : `${counted(valid.length,'day')} with numeric totals`}</small></>})),
+    {id:'total-fx-period',title:'FX P&L · Period (USD)',kind:'metric',content:<><div>FX P&L · Period (USD)</div><strong>{number(pnlPeriod.fx)}</strong><small>Selected period · column T</small></>},
+    {id:'total-combined-period',title:'P&L+FX· Period (USD)',kind:'metric',content:<><div>P&L+FX· Period (USD)</div><strong>{number(pnlPeriod.combined)}</strong><small>Selected period · Y + T</small></>},
     {id:'total-fx-today',title:'FX P&L · Today (USD)',kind:'metric',content:<><div>FX P&L · Today (USD)</div><strong>{number(pnlToday.fx)}</strong><small>{day(today)} · column T</small></>},
     {id:'total-combined-today',title:'P&L+FX· Today (USD)',kind:'metric',content:<><div>P&L+FX· Today (USD)</div><strong>{number(pnlToday.combined)}</strong><small>{day(today)} · Y + T</small></>},
     {id:'rate-today',title:"Avg. Rate · Today",kind:'metric',content:<><div>Avg. Rate · Today</div><strong>{number(rates.current.value)}</strong><small>{day(today)} · {rates.current.count} values in E</small></>},

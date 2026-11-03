@@ -9,7 +9,14 @@ async function loadTs(file) {
  const exports={};new Function('require','exports',code)(require,exports);return exports;
 }
 (async()=>{
- const {dailyPnl}=await loadTs('src/dailyPnl.ts');
+ const {dailyPnl,periodPnl}=await loadTs('src/dailyPnl.ts');
+ const point=(date,total,fxPnl,issue=null,fxIssue=null)=>({date,total,fxPnl,issue,fxIssue});
+ const periodRows=[point('2026-11-01',100,20),point('2026-11-02',null,5,'Missing'),point('2026-11-03',30,null,null,'Missing'),point('2026-11-04',999,999),point(null,800,800)];
+ assert.deepEqual(periodPnl(periodRows,'2026-11-01','2026-11-03'),{fx:25,combined:155,days:3},'Inclusive selected range, independent missing components and ambiguous dates');
+ assert.deepEqual(periodPnl(periodRows,'2026-11-02','2026-11-02'),{fx:5,combined:5,days:1});
+ assert.deepEqual(periodPnl(periodRows,'2026-11-03','2026-11-03'),{fx:null,combined:30,days:1});
+ assert.deepEqual(periodPnl(periodRows,'2026-12-01','2026-12-02'),{fx:null,combined:0,days:0});
+ assert.deepEqual(periodPnl([point('2026-11-01',10,0),point('2026-11-01',20,5)],'',''),{fx:5,combined:35,days:1},'Multiple totals on a day and numeric zero');
  const {readDashboard:webReader}=await loadTs('src/excel.ts');
  const workbook=new ExcelJS.Workbook();const sheet=workbook.addWorksheet('RUB Deals Rates');
  sheet.getCell('A1').value='DATE FIXED';
