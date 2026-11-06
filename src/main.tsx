@@ -1,3 +1,4 @@
+import {CurrencyBreakdown} from './CurrencyBreakdown';
 import React from 'react';
 import {createRoot} from 'react-dom/client';
 import {Button, ThemeProvider, configure, DropdownMenu} from '@gravity-ui/uikit';
@@ -22,7 +23,6 @@ const counted = (value:number,unit:string) => `${value} ${unit}${value===1?'':'s
 const changeColor = (value: number | null) => value === null || value === 0 ? 'change-neutral' : value < 0 ? 'change-negative' : 'change-positive';
 type Section = 'overview' | 'total' | 'fixed' | 'rates';
 const sections: {id:Section;label:string}[] = [{id:'overview',label:'Overview'},{id:'total',label:'P&L'},{id:'fixed',label:'Fixed Amount'},{id:'rates',label:'Rates'}];
-const currencyColors = ['#49a2ed','#ff3765','#78d85e','#ffc43b','#b17bf2','#37c6b7','#f48b56'];
 const day = (d: string) => d.split('-').reverse().join('/');
 function App() {
   const {titles,rename}=useCardTitles();
@@ -58,7 +58,6 @@ function App() {
   const issues = (data?.points ?? []).filter(p => p.issue);
   const today = todayDate();
   const rates = analytics(data?.operations ?? [], today, from, to);
-  const currencyTotal = rates.currencies.reduce((sum,p)=>sum+p.value,0);
   const fixedToday = (data?.points ?? []).filter(p => p.date === today && p.fixedUsdAmount !== null && !p.fixedIssue);
   const fixedTodaySum = fixedToday.length ? fixedToday.reduce((sum,p)=>sum+p.fixedUsdAmount!,0) : null;
   const pnlToday = dailyPnl(data?.points ?? [], today);
@@ -73,7 +72,7 @@ function App() {
     {id:'rate-today',title:"Avg. Rate · Today",kind:'metric',content:<><div>Avg. Rate · Today</div><strong>{number(rates.current.value)}</strong><small>{day(today)} · {rates.current.count} values in E</small></>},
     {id:'rate-period',title:"Avg. Rate · Period",kind:'metric',content:<><div>Avg. Rate · Period</div><strong>{number(rates.period.value)}</strong><small>Simple average of E · {rates.period.count} values</small></>},
     {id:'rate-change',title:"Rate · Daily Change (%)",kind:'metric',content:<><div>Rate · Daily Change (%)</div><strong className={changeColor(rates.change)}>{rates.change === null ? '—' : number(rates.change) + '%'}</strong><small>{rates.previousDate ? 'Compared with ' + day(rates.previousDate) : 'No earlier day with a rate'}</small></>},
-    {id:'currencies',title:"Currency breakdown",kind:'panel',content:<><h2>Currency breakdown</h2><p>Column L · share of Fixed Amount (U) for the selected period</p>{rates.currencyIssue ? <div className="empty"><h3>Negative currency totals</h3><p>A pie chart requires non-negative currency totals.</p></div> : rates.currencies.length ? <div className="currency-layout"><div className="currency-chart"><Chart data={{legend:{enabled:false},series:{data:[{type:'pie',tooltip:{valueFormat:{type:'custom',formatter:({value})=>number(typeof value === 'number' ? value : null) + ' USD'}},data:rates.currencies.map((p,i)=>({...p,color:currencyColors[i%currencyColors.length]})),dataLabels:{enabled:false}}]}}}/></div><div className="currency-legend">{rates.currencies.map((p,i)=><div className="currency-entry" key={p.name}><div className="currency-entry-heading"><span className="currency-name"><span className="currency-dot" style={{background:currencyColors[i%currencyColors.length]}}/>{p.name}</span><span>{number(p.value/currencyTotal*100)}%</span></div><div className="numeric-value currency-amount">{number(p.value)} USD</div></div>)}</div></div> : <div className="empty"><h3>No transactions in the selected period</h3></div>}</>},
+    {id:'currencies',title:"Currency breakdown",kind:'panel',content:<><h2>Currency breakdown</h2><p>Column L · share of Fixed Amount (U) for the selected period</p>{rates.currencyIssue ? <div className="empty"><h3>Negative currency totals</h3><p>A pie chart requires non-negative currency totals.</p></div> : rates.currencies.length ? <CurrencyBreakdown currencies={rates.currencies}/> : <div className="empty"><h3>No transactions in the selected period</h3></div>}</>},
     {id:'total-chart',title:"Trend of P&L · Today (USD)",kind:'panel',content:<><h2>Trend of P&L · Today (USD)</h2><p>Block date: A · daily P&L: Y · USD</p>{valid.length ? <div style={{height:320}}><Chart data={{tooltip:{valueFormat:{type:'custom',formatter:({value})=>number(typeof value === 'number' ? value : null)}},yAxis:[{labels:{numberFormat:{precision:2,showRankDelimiter:true,lang:'en',unit:null},style:{fontColor:'#3585f5'}}}],xAxis:{type:'category',categories:visible.map(p=>day(p.date!))},series:{data:[{type:'line',color:'#3585f5',name:'P&L (USD)',data:visible.map((p,i)=>({x:i,y:p.issue ? null : p.total}))}]}}}/></div> : <div className="empty"><span className="chart-icon">▥</span><h3>No numeric totals in the selected period</h3><p>Load an Excel workbook or change the date range.</p></div>}</>},
     {id:'daily-table',title:"Daily data",kind:'panel',content:<><h2>Daily data</h2><div className="table-scroll"><table><thead><tr><th>Date</th><th>P&L (USD)</th><th>Fixed Amount (USD)</th><th>Excel row</th><th>Status</th></tr></thead><tbody>{visible.length ? [...visible].reverse().map(p=><tr key={p.row}><td>{day(p.date!)}</td><td className="numeric-value">{number(p.total)}</td><td className="numeric-value" title={p.fixedIssue ?? undefined}>{number(p.fixedUsdAmount)}</td><td>{p.row}</td><td>{p.issue ?? 'Saved Excel total'}</td></tr>) : <tr><td colSpan={5} className="empty-row">No data loaded or no data in this period</td></tr>}</tbody></table></div></>},
     {id:'date-issues',title:"Check Excel dates",kind:'panel',content:<><h2>Check Excel dates</h2><p>These blocks have missing or conflicting dates. Their totals are excluded from the trend until corrected.</p>{issues.filter(p=>!p.date).map(p=><p key={p.row}>Row {p.row}: {p.issue}</p>)}</>},
